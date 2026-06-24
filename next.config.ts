@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,
@@ -64,16 +65,15 @@ const nextConfig: NextConfig = {
       //
       //   SyntaxError: Octal escape sequences are not allowed in template strings
       //
-      // This crash causes chunk 5782 to fail, which in turn makes import("cesium") reject,
-      // freezing the globe at "[INIT] before import" in production.
+      // This crash causes the Cesium chunk to fail at runtime, which makes import("cesium")
+      // reject, freezing the globe at 10% in production.
       //
-      // The fix: alias @spz-loader/core to false (empty module). Cesium's GltfSpzLoader
-      // — the only consumer of this package — handles a missing import gracefully.
-      // The feature lost is loading .spz Gaussian Splat point-cloud files, which this
-      // application does not use.
+      // Fix: alias @spz-loader/core to a real no-op stub module. Cesium's GltfSpzLoader
+      // — the only consumer — handles a missing loadSpz gracefully (just won't load .spz
+      // Gaussian Splat files, which this application does not use).
       config.resolve.alias = {
         ...config.resolve.alias,
-        "@spz-loader/core": false,
+        "@spz-loader/core": path.resolve(__dirname, "src/lib/empty-stub.js"),
       };
     }
     return config;
