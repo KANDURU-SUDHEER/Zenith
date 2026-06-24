@@ -48,17 +48,17 @@ export async function GET() {
       }
     );
   } catch (error) {
-    // Fallback to a verified live APOD image
+    // Fallback — returns minimal valid data with no image URL.
+    // The UI handles missing url gracefully (shows placeholder).
     return NextResponse.json(
       {
-        title: "Pillars of Creation",
+        title: "Coronal Mass Ejection from the Sun",
         explanation:
-          "The Pillars of Creation are towering columns of interstellar gas and dust in the Eagle Nebula, photographed by the James Webb Space Telescope. These columns are active regions where new stars are forming within the dense gas.",
-        url: "https://apod.nasa.gov/apod/image/2211/PillarsOfCreation_Webb_1080.jpg",
-        hdurl: "https://apod.nasa.gov/apod/image/2211/PillarsOfCreation_Webb_1080.jpg",
+          "The Sun's surface is a churning soup of energetic plasma. Magnetic field loops twist and snap, expelling billions of tons of plasma into space — a coronal mass ejection. NASA monitors these events because they can disrupt power grids and satellites on Earth.",
+        url: "",
         media_type: "image",
         date: todayUTC,
-        copyright: "NASA, ESA, CSA, STScI",
+        copyright: "NASA/SDO",
         _source: "fallback",
         _error: error instanceof Error ? error.message : "Unknown error",
       },

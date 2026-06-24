@@ -3,102 +3,74 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-interface ApodData {
+export interface ApodData {
   title: string;
   explanation: string;
   url: string;
   hdurl?: string;
-  media_type: string;
+  media_type: "image" | "video" | string;
   date: string;
   copyright?: string;
   _source?: string;
 }
 
-const MOCK_APOD: ApodData = {
-  title: "Loading Today's Image",
-  explanation:
-    "The Astronomy Picture of the Day is loading. NASA's APOD features a different image or photograph of our fascinating universe each day, accompanied by a brief explanation written by a professional astronomer. Check back in a moment.",
-  url: "https://apod.nasa.gov/apod/image/2211/PillarsOfCreation_Webb_1080.jpg",
-  media_type: "image",
-  date: new Date().toISOString().split("T")[0]!,
-  copyright: "NASA, ESA, CSA, STScI",
-};
-
 function todayUTC(): string {
   return new Date().toISOString().split("T")[0]!;
 }
 
-async function fetchApod(): Promise<ApodData> {
-  try {
-    const response = await fetch("/api/nasa/apod", { cache: "no-store" });
-    if (!response.ok) throw new Error("APOD API route failed");
-    return await response.json();
-  } catch {
-    return MOCK_APOD;
-  }
-}
-
-/**
- * Returns milliseconds until the next UTC midnight.
- * Used to schedule an exact midnight refresh.
- */
 function msUntilMidnightUTC(): number {
   const now = Date.now();
   const midnight = new Date();
   midnight.setUTCHours(24, 0, 0, 0);
-  return Math.max(0, midnight.getTime() - now);
+  return Math.max(60_000, midnight.getTime() - now);
+}
+
+async function fetchApod(): Promise<ApodData> {
+  // Add a cache-busting timestamp param so the browser never serves a cached
+  // response from a previous day. The server handles its own caching.
+  const res = await fetch(`/api/nasa/apod?t=${todayUTC()}`);
+  if (!res.ok) throw new Error(`APOD fetch failed: ${res.status}`);
+  const data = await res.json() as ApodData;
+  // Validate the response has the minimum required fields
+  if (!data.title || !data.media_type) throw new Error("Invalid APOD response");
+  return data;
 }
 
 export function useApod() {
-  // Track current UTC date as state so a date change triggers a re-render
-  // and therefore a new queryKey → TanStack Query fetches fresh data.
   const [currentDate, setCurrentDate] = useState(todayUTC);
   const queryClient = useQueryClient();
 
+  // Schedule an exact-midnight refresh so tabs left open overnight auto-update
   useEffect(() => {
-    let timeout: ReturnType<typeof setTimeout>;
-
-    function scheduleNextMidnight() {
-      const ms = msUntilMidnightUTC();
-
-      timeout = setTimeout(() => {
-        const newDate = todayUTC();
-        setCurrentDate(newDate);
-
-        // Immediately invalidate the old query so it gets garbage-collected
-        // and the new query for the new day fetches right away.
+    let t: ReturnType<typeof setTimeout>;
+    function schedule() {
+      t = setTimeout(() => {
+        const d = todayUTC();
+        setCurrentDate(d);
         queryClient.invalidateQueries({ queryKey: ["apod"] });
-
-        // Schedule the next midnight (24h later)
-        scheduleNextMidnight();
-      }, ms);
+        schedule();
+      }, msUntilMidnightUTC());
     }
-
-    scheduleNextMidnight();
-    return () => clearTimeout(timeout);
+    schedule();
+    return () => clearTimeout(t);
   }, [queryClient]);
 
   return useQuery<ApodData>({
-    // currentDate in the key means when the date state changes at midnight,
-    // TanStack Query sees a brand-new query and fetches immediately.
-    queryKey: ["apod", currentDate],
-    queryFn: fetchApod,
-    // Mark data as stale at midnight — exact ms until 00:00:00 UTC.
-    staleTime: msUntilMidnightUTC,
-    // Keep old data in cache for 2 hours past midnight (graceful degradation).
-    gcTime: 2 * 60 * 60 * 1000,
-    placeholderData: MOCK_APOD,
-    refetchOnMount: true,
+    queryKey:  ["apod", currentDate],
+    queryFn:   fetchApod,
+    staleTime: msUntilMidnightUTC(),   // stays fresh until midnight UTC
+    gcTime:    2 * 60 * 60 * 1000,    // keep in cache 2 h past midnight
+    retry:     2,                      // retry twice on network failure
+    refetchOnMount:       true,
     refetchOnWindowFocus: true,
-    refetchInterval: false,
+    refetchInterval:      false,
+    // No placeholderData — show the skeleton while loading,
+    // not a stale mock that confuses the media-type rendering
   });
 }
 
-/**
- * Prefetch APOD data during idle time so it's ready when the user opens the tab.
- */
 export function prefetchApod() {
   if (typeof window !== "undefined") {
-    fetch("/api/nasa/apod", { cache: "no-store" }).catch(() => {});
+    fetch(`/api/nasa/apod?t=${todayUTC()}`).catch(() => {});
   }
 }

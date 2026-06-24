@@ -2,28 +2,21 @@
 
 import { useState, useCallback } from "react";
 import {
-  ExternalLink,
-  Download,
-  Share2,
-  Maximize2,
-  Calendar,
-  Camera,
-  Sparkles,
-  RefreshCw,
+  ExternalLink, Download, Share2, Maximize2,
+  Calendar, Camera, Sparkles, RefreshCw, AlertCircle,
 } from "lucide-react";
 import { useApod } from "@/hooks/use-apod";
 import { LastUpdated } from "@/components/status/LastUpdated";
 import { showToast, dismissAllToasts } from "@/components/ui/toast";
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── URL helpers ──────────────────────────────────────────────────────────────
 
 function getYouTubeId(url: string): string | null {
-  const patterns = [
+  for (const p of [
     /youtube\.com\/embed\/([^?&/]+)/,
     /youtube\.com\/watch\?v=([^&]+)/,
     /youtu\.be\/([^?&/]+)/,
-  ];
-  for (const p of patterns) {
+  ]) {
     const m = url.match(p);
     if (m?.[1]) return m[1];
   }
@@ -31,8 +24,7 @@ function getYouTubeId(url: string): string | null {
 }
 
 function getVimeoId(url: string): string | null {
-  const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
-  return m?.[1] ?? null;
+  return url.match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1] ?? null;
 }
 
 function extFromUrl(url: string): string {
@@ -44,32 +36,27 @@ function isVideoFile(url: string): boolean {
   return /\.(mp4|webm|mov|ogv|mpeg|mpg)(\?|$)/i.test(url);
 }
 
-/**
- * Download an image through the server proxy.
- * proxy → streams back with Content-Disposition: attachment
- * client → blob URL → named <a download> click
- */
-async function saveImage(imageUrl: string, filename: string): Promise<void> {
-  const proxyUrl = `/api/nasa/apod/download?url=${encodeURIComponent(imageUrl)}&filename=${encodeURIComponent(filename)}`;
-  const res = await fetch(proxyUrl);
+// ─── Download helpers ─────────────────────────────────────────────────────────
 
-  if (res.status === 403) {
-    // Hostname not in allowlist — open in new tab as fallback
-    window.open(imageUrl, "_blank", "noopener noreferrer");
-    return;
-  }
+/** Download an image via server proxy → blob → named anchor */
+async function saveImage(imageUrl: string, filename: string): Promise<void> {
+  const proxyUrl =
+    `/api/nasa/apod/download` +
+    `?url=${encodeURIComponent(imageUrl)}` +
+    `&filename=${encodeURIComponent(filename)}`;
+
+  const res = await fetch(proxyUrl);
+  if (res.status === 403) { window.open(imageUrl, "_blank", "noopener noreferrer"); return; }
   if (!res.ok) {
     let msg = `Server error (${res.status})`;
-    try { const b = await res.json() as { error?: string }; if (b.error) msg = b.error; } catch { /**/ }
+    try { const b = await res.json() as { error?: string }; if (b.error) msg = b.error; } catch {/**/}
     throw new Error(msg);
   }
-
   const blob   = await res.blob();
   const objUrl = URL.createObjectURL(blob);
-  const a      = document.createElement("a");
-  a.href       = objUrl;
-  a.download   = filename;
-  a.style.display = "none";
+  const a      = Object.assign(document.createElement("a"), {
+    href: objUrl, download: filename, style: "display:none",
+  });
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -77,24 +64,23 @@ async function saveImage(imageUrl: string, filename: string): Promise<void> {
 }
 
 /**
- * Download a video by opening the proxy URL in a new tab.
+ * Download a video by opening the proxy in a new tab.
+ * The proxy responds with Content-Disposition: attachment →
+ * browser shows Save As and closes the blank tab automatically.
  *
- * Why <a target="_blank"> and NOT:
- *   fetch()+blob()      → times out for large files in JS memory
- *   window.location.href → navigates the current page away (ERR_FAILED)
- *   Service Worker      → CORS blocks cross-origin fetch from SW
- *
- * The proxy route returns Content-Disposition: attachment.
- * Browsers auto-trigger Save As for attachment responses and close
- * the blank tab — the user never sees the new tab.
+ * We do NOT use fetch()+blob() for video — large files time out.
+ * We do NOT use window.location.href — that navigates away from the app.
+ * We do NOT use a Service Worker — CORS blocks cross-origin SW fetches.
  */
 function saveVideo(videoUrl: string, filename: string): void {
-  const proxyUrl = `/api/nasa/apod/download-video?url=${encodeURIComponent(videoUrl)}&filename=${encodeURIComponent(filename)}`;
-  const a        = document.createElement("a");
-  a.href         = proxyUrl;
-  a.target       = "_blank";
-  a.rel          = "noopener noreferrer";
-  a.style.display = "none";
+  const proxyUrl =
+    `/api/nasa/apod/download-video` +
+    `?url=${encodeURIComponent(videoUrl)}` +
+    `&filename=${encodeURIComponent(filename)}`;
+
+  const a = Object.assign(document.createElement("a"), {
+    href: proxyUrl, target: "_blank", rel: "noopener noreferrer", style: "display:none",
+  });
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -103,17 +89,17 @@ function saveVideo(videoUrl: string, filename: string): void {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function APODView() {
-  const { data: apod, isLoading, refetch, dataUpdatedAt } = useApod();
-  const [imageLoaded, setImageLoaded]   = useState(false);
-  const [fullscreen, setFullscreen]     = useState(false);
-  const [isSaving, setIsSaving]         = useState(false);
+  const { data: apod, isLoading, isError, refetch, dataUpdatedAt } = useApod();
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [fullscreen,  setFullscreen]  = useState(false);
+  const [isSaving,    setIsSaving]    = useState(false);
 
   const handleShare = useCallback(async () => {
     if (!apod) return;
     const shareUrl = apod.hdurl || apod.url;
     if (navigator.share) {
       try { await navigator.share({ title: `NASA APOD: ${apod.title}`, url: shareUrl }); }
-      catch { /**/ }
+      catch {/**/}
     } else {
       await navigator.clipboard.writeText(shareUrl);
       showToast("Link copied to clipboard", "info");
@@ -123,35 +109,32 @@ export function APODView() {
   const handleDownload = useCallback(async () => {
     if (!apod || isSaving) return;
     setIsSaving(true);
-
     try {
-      const isVideo = apod.media_type === "video";
+      const isVid = apod.media_type === "video";
 
-      if (isVideo) {
-        // YouTube → save thumbnail (can't download YT videos)
-        const ytId = getYouTubeId(apod.url);
+      if (isVid) {
+        const ytId    = getYouTubeId(apod.url);
+        const vimeoId = getVimeoId(apod.url);
+
         if (ytId) {
           showToast("Saving thumbnail…", "info", 15000);
           await saveImage(
             `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg`,
-            `NASA_APOD_${apod.date}_thumbnail.jpg`
+            `NASA_APOD_${apod.date}_thumbnail.jpg`,
           );
           dismissAllToasts();
           showToast("Thumbnail saved!", "success", 3000);
           return;
         }
-
-        // Vimeo → save thumbnail
-        const vimeoId = getVimeoId(apod.url);
         if (vimeoId) {
           showToast("Fetching thumbnail…", "info", 10000);
-          let thumbUrl: string | null = null;
+          let thumb: string | null = null;
           try {
             const r = await fetch(`https://vimeo.com/api/oembed.json?url=https://vimeo.com/${vimeoId}`);
-            if (r.ok) { const d = await r.json() as { thumbnail_url?: string }; thumbUrl = d.thumbnail_url ?? null; }
-          } catch { /**/ }
-          if (thumbUrl) {
-            await saveImage(thumbUrl, `NASA_APOD_${apod.date}_thumbnail.jpg`);
+            if (r.ok) thumb = ((await r.json()) as { thumbnail_url?: string }).thumbnail_url ?? null;
+          } catch {/**/}
+          if (thumb) {
+            await saveImage(thumb, `NASA_APOD_${apod.date}_thumbnail.jpg`);
             dismissAllToasts();
             showToast("Thumbnail saved!", "success", 3000);
           } else {
@@ -160,22 +143,19 @@ export function APODView() {
           }
           return;
         }
-
-        // Direct MP4/WebM → proxy download via hidden anchor (new tab)
         if (isVideoFile(apod.url)) {
           showToast("Starting video download…", "info", 5000);
           saveVideo(apod.url, `NASA_APOD_${apod.date}.${extFromUrl(apod.url)}`);
           dismissAllToasts();
           return;
         }
-
-        // Unknown video type → open on NASA
         window.open(apod.url, "_blank", "noopener noreferrer");
         return;
       }
 
-      // Image → proxy → blob → named save
+      // Image
       const imageUrl = apod.hdurl || apod.url;
+      if (!imageUrl) { showToast("No image to download", "error", 3000); return; }
       showToast(apod.hdurl ? "Downloading HD image…" : "Downloading image…", "info", 30000);
       await saveImage(imageUrl, `NASA_APOD_${apod.date}.${extFromUrl(imageUrl)}`);
       dismissAllToasts();
@@ -193,12 +173,30 @@ export function APODView() {
     if (apod?.hdurl) window.open(apod.hdurl, "_blank", "noopener");
   }, [apod]);
 
+  // ── Loading / error states ──────────────────────────────────────────────────
   if (isLoading) return <APODSkeleton />;
-  if (!apod)     return null;
 
-  const isVideo       = apod.media_type === "video";
-  const hasHD         = !!apod.hdurl && !isVideo;
-  const isEmbeddable  = isVideo && (
+  if (isError || !apod) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-[#0D0E10]">
+        <div className="flex flex-col items-center gap-4 text-center px-6">
+          <AlertCircle className="h-10 w-10 text-white/20" />
+          <p className="text-sm text-white/40">Could not load today&apos;s APOD</p>
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs text-white/60 hover:bg-white/10 hover:text-white"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Determine media type ────────────────────────────────────────────────────
+  const isVideo      = apod.media_type === "video";
+  const hasHD        = !!apod.hdurl && !isVideo;
+  const isEmbeddable = isVideo && (
     apod.url.includes("youtube.com/embed") ||
     apod.url.includes("youtu.be") ||
     apod.url.includes("vimeo.com") ||
@@ -209,7 +207,7 @@ export function APODView() {
   return (
     <div className="relative h-full w-full overflow-y-auto bg-[#0D0E10]">
 
-      {/* Fullscreen overlay */}
+      {/* Fullscreen image overlay */}
       {fullscreen && !isVideo && (
         <div
           className="fixed inset-0 z-50 flex cursor-zoom-out items-center justify-center bg-black/95 backdrop-blur-sm"
@@ -221,16 +219,16 @@ export function APODView() {
             alt={apod.title}
             className="max-h-full max-w-full object-contain p-4"
           />
-          <p className="absolute bottom-6 text-sm text-white/50">Click anywhere to close</p>
+          <p className="absolute bottom-6 text-sm text-white/40">Click anywhere to close</p>
         </div>
       )}
 
       <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
 
-        {/* Header */}
+        {/* Header row */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgba(255,255,255,0.06)] ring-1 ring-[rgba(255,255,255,0.08)]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] ring-1 ring-white/[0.08]">
               <Sparkles className="h-5 w-5 text-[#A8A9AD]" />
             </div>
             <div>
@@ -256,9 +254,11 @@ export function APODView() {
         <div className="overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] shadow-2xl shadow-black/40">
           <div
             className={`relative aspect-[16/9] w-full overflow-hidden bg-[#111215] ${!isVideo ? "cursor-zoom-in" : ""}`}
-            onClick={() => !isVideo && setFullscreen(true)}
+            onClick={() => !isVideo && apod.url && setFullscreen(true)}
           >
-            {isEmbeddable ? (
+
+            {/* ── VIDEO: embeddable (YouTube / Vimeo) ── */}
+            {isEmbeddable && (
               <iframe
                 src={apod.url}
                 className="h-full w-full"
@@ -266,20 +266,25 @@ export function APODView() {
                 allowFullScreen
                 title={apod.title}
               />
-            ) : isDirectVideo ? (
-              /* Direct MP4/WebM — native browser player, streams properly */
+            )}
+
+            {/* ── VIDEO: direct MP4 / WebM ── */}
+            {isDirectVideo && (
               <video
-                src={apod.url}
+                key={apod.url}          /* re-mount when URL changes */
                 className="h-full w-full"
                 controls
                 playsInline
                 preload="metadata"
                 style={{ background: "#000" }}
               >
+                <source src={apod.url} type="video/mp4" />
                 <track kind="captions" />
               </video>
-            ) : isVideo ? (
-              /* Unrecognised video type — link to NASA */
+            )}
+
+            {/* ── VIDEO: unknown format ── */}
+            {isVideo && !isEmbeddable && !isDirectVideo && (
               <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-[#0a0b0e] p-8 text-center">
                 <ExternalLink className="h-10 w-10 text-white/30" />
                 <p className="text-sm font-medium text-white/80">Today&apos;s APOD is a video</p>
@@ -289,43 +294,49 @@ export function APODView() {
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 rounded-xl bg-white/[0.08] px-5 py-2.5 text-sm font-medium text-white/80 ring-1 ring-white/10 transition hover:bg-white/[0.12] hover:text-white"
                 >
-                  <ExternalLink className="h-4 w-4" />
-                  Watch on NASA.gov
+                  <ExternalLink className="h-4 w-4" />Watch on NASA.gov
                 </a>
               </div>
-            ) : (
-              /* Image */
+            )}
+
+            {/* ── IMAGE ── */}
+            {!isVideo && (
               <>
                 {!imageLoaded && (
                   <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-indigo-950/50 to-purple-950/50" />
                 )}
-                {/* Plain <img> — avoids next/image domain restrictions and
-                    proxy overhead for cross-origin NASA images */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={apod.url}
-                  alt={apod.title}
-                  loading="eager"
-                  decoding="async"
-                  onLoad={() => setImageLoaded(true)}
-                  className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${imageLoaded ? "opacity-100" : "opacity-0"}`}
-                />
+                {apod.url ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    key={apod.url}
+                    src={apod.url}
+                    alt={apod.title}
+                    loading="eager"
+                    decoding="async"
+                    onLoad={()  => setImageLoaded(true)}
+                    onError={() => setImageLoaded(true)}
+                    className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${imageLoaded ? "opacity-100" : "opacity-0"}`}
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <p className="text-sm text-white/30">Image unavailable</p>
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
               </>
             )}
 
-            {/* Badges */}
+            {/* Badges (always visible) */}
             <div className="absolute left-4 top-4 flex items-center gap-2 pointer-events-none">
               <span className="flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur-md ring-1 ring-white/10">
-                <Sparkles className="h-3.5 w-3.5 text-[#A8A9AD]" />
-                NASA APOD
+                <Sparkles className="h-3.5 w-3.5 text-[#A8A9AD]" />NASA APOD
               </span>
               {hasHD   && <span className="rounded-full bg-indigo-600/70 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-md">HD</span>}
               {isVideo && <span className="rounded-full bg-rose-600/70   px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-md">VIDEO</span>}
             </div>
 
             {/* Title overlay — images only */}
-            {!isVideo && (
+            {!isVideo && apod.url && (
               <div className="absolute bottom-0 left-0 right-0 p-6 pointer-events-none">
                 <h2 className="text-xl font-bold text-white drop-shadow-lg sm:text-2xl">{apod.title}</h2>
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-white/60">
@@ -371,13 +382,18 @@ export function APODView() {
 
         {/* Explanation */}
         <div className="mt-6 rounded-2xl border border-white/5 bg-white/[0.02] p-6">
+          {/* Video title (shown above explanation for video APODs) */}
+          {isVideo && (
+            <h2 className="mb-3 text-lg font-bold text-white">{apod.title}</h2>
+          )}
           <h3 className="text-sm font-semibold text-white/80">
             {isVideo ? "About This Video" : "About This Image"}
           </h3>
           <p className="mt-3 text-sm leading-relaxed text-white/60">{apod.explanation}</p>
           <p className="mt-3 text-sm leading-relaxed text-white/60">
-            NASA&apos;s Astronomy Picture of the Day has published a new image every day since June 16, 1995,
-            with a brief explanation written by a professional astronomer.
+            NASA&apos;s Astronomy Picture of the Day has run since June 16, 1995.
+            Each day a different image or photograph of our universe is featured,
+            with an explanation written by a professional astronomer.
           </p>
           {apod.copyright && (
             <div className="mt-4 border-t border-white/5 pt-4">
