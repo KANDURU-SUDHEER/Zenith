@@ -21,7 +21,12 @@ Track every satellite. Explore every planet. Know everything above you — from 
 
 <br/>
 
-[Live Demo](https://project-zenith.vercel.app) &nbsp;·&nbsp; 
+### 🌐 [Explore the Platform → zenith-the-celestial-eye.netlify.app](https://zenith-the-celestial-eye.netlify.app/)
+
+### 📦 [View Source on GitHub → KANDURU-SUDHEER/Zenith](https://github.com/KANDURU-SUDHEER/Zenith)
+
+<br/>
+
 </div>
 
 
@@ -259,9 +264,10 @@ One of Zenith's most capable features. A unified search layer across the entire 
 The centrepiece of the platform — a WebGL-powered 3D Earth with live satellite overlays.
 
 - CesiumJS 1.142 with Resium bindings for React
-- 8,000+ satellite positions updated every 4 seconds
-- ISS rendered with a dedicated orbital path renderer
-- Clicking a satellite draws its complete orbital path
+- 8,000+ satellite positions updated every second via SGP4 propagation
+- ISS rendered with a dedicated high-fidelity orbital path renderer (gold dot, glowing blue future orbit, amber dashed trail)
+- **Click any satellite** → camera flies to it, the complete future orbital path draws on the globe in the satellite's category colour, the past trail renders as a dashed fade, and a detail panel opens showing: name, NORAD ID, country of origin, operator, speed (km/s · km/h · mph), altitude, inclination, lat/lng, orbital period, orbit type (LEO/MEO/GEO/HEO/SSO), and launch year
+- **Hover any satellite** → tooltip shows name, category, NORAD ID, altitude, speed, and inclination without requiring a click
 - Day/night lighting driven by real-time sun position
 - Optional OpenWeatherMap cloud tile overlay
 - Controls: Home, North-Up, Refresh, My Location, Lighting, Clouds
