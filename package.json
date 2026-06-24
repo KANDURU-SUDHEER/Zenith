@@ -21,7 +21,7 @@
   "author": "Project Zenith Team",
   "scripts": {
     "dev": "next dev",
-    "build": "npm run copy-cesium && next build",
+    "build": "npm run copy-cesium && next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
