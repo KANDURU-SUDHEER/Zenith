@@ -201,13 +201,17 @@ const persistedGroupData = new Map<string, TLEData[]>();
 
 export async function fetchAllTLEData(): Promise<TLEData[]> {
   const groups: Array<{ group: string; category: SatelliteCategory }> = [
+    // "stations" from CelesTrak returns only actual crewed/inhabited space stations
+    // (ISS, Tiangong, etc.) — a small set (~5 objects). Do NOT use it as a general
+    // satellite catalog. The ISS is also tracked separately by useISSTracker.
     { group: "stations", category: "space-stations" },
-    { group: "gps-ops", category: "gps" },
-    { group: "weather", category: "weather" },
-    { group: "geo", category: "communication" },
+    { group: "gps-ops",  category: "gps" },
+    { group: "weather",  category: "weather" },
+    { group: "geo",      category: "communication" },
     { group: "resource", category: "earth-observation" },
-    { group: "science", category: "scientific" },
+    { group: "science",  category: "scientific" },
     { group: "starlink", category: "starlink" },
+    { group: "military", category: "military" },
   ];
 
   const results = await Promise.allSettled(

@@ -48,7 +48,7 @@ const initialFilters: SatelliteFilters = {
   gps: true,
   weather: true,
   communication: true,
-  science: true,
+  scientific: true,
   earthObservation: true,
   spaceStations: true,
   military: true,
@@ -111,7 +111,7 @@ export function categoryToFilterKey(category: SatelliteCategory): string {
     case "weather": return "weather";
     case "communication": return "communication";
     case "earth-observation": return "earthObservation";
-    case "scientific": return "science";
+    case "scientific": return "scientific";
     case "space-stations": return "spaceStations";
     case "military": return "military";
     case "debris": return "debris";

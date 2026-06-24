@@ -124,7 +124,7 @@ export interface SatelliteFilters {
   gps: boolean;
   weather: boolean;
   communication: boolean;
-  science: boolean;
+  scientific: boolean;
   earthObservation: boolean;
   spaceStations: boolean;
   military: boolean;

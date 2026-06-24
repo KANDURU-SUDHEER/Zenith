@@ -34,7 +34,7 @@ const GLOBE_KEY_MAP: Record<string, string> = {
   weather:          "weather",
   communication:    "communication",
   earthObservation: "earthObservation",
-  scientific:       "science",
+  scientific:       "scientific",
   spaceStations:    "spaceStations",
   military:         "military",
 };
@@ -88,25 +88,12 @@ export function SatelliteSidebar() {
   // This avoids subscribing to the full satellite array which changes every 4s.
   const storeCounts = useSatelliteStore((s) => s.categoryCounts);
 
-  // Compute per-category counts from store data (already tallied by orbital engine)
+  // Compute per-category counts from store data (already keyed by filter key)
   const liveCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const [cat, count] of Object.entries(storeCounts)) {
-      const keyMap: Record<string, string> = {
-        iss:                "iss",
-        starlink:           "starlink",
-        gps:                "gps",
-        weather:            "weather",
-        communication:      "communication",
-        "earth-observation":"earthObservation",
-        scientific:         "scientific",
-        "space-stations":   "spaceStations",
-        military:           "military",
-      };
-      const mapped = keyMap[cat];
-      if (mapped) counts[mapped] = (counts[mapped] ?? 0) + count;
-    }
-    return counts;
+    // computeCounts in use-orbital-engine already maps raw categories to filter
+    // keys ("spaceStations", "scientific", "earthObservation", etc.), so we can
+    // use storeCounts directly without re-mapping.
+    return storeCounts;
   }, [storeCounts]);
 
   const displayCounts = useMemo(() => {

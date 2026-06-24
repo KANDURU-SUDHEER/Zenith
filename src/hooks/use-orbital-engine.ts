@@ -13,6 +13,7 @@ import { fetchAllTLEData } from "@/services/tle-service";
 import {
   useSatelliteStore,
   passesFilter,
+  categoryToFilterKey,
 } from "@/stores/satellite-store";
 import { getSimulationTime } from "@/stores/simulation-clock";
 
@@ -28,7 +29,7 @@ interface OrbitalEngineState {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const TLE_REFRESH_INTERVAL = 180_000;  // 3 minutes — TLE orbital elements don't change fast
-const PROPAGATION_INTERVAL = 4_000;   // Recompute positions every 4 seconds
+const PROPAGATION_INTERVAL = 1_000;   // Recompute positions every 1 second for smooth motion
 // ISS NORAD ID — excluded from the general satellite renderer (has its own layer)
 const ISS_NORAD_ID = 25544;
 
@@ -126,7 +127,10 @@ function propagateAllSatellites(tleData: TLEData[], time?: Date): Satellite[] {
 function computeCounts(satellites: Satellite[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const sat of satellites) {
-    counts[sat.category] = (counts[sat.category] ?? 0) + 1;
+    // Use the same filter key the sidebar reads ("spaceStations", "scientific",
+    // "earthObservation") rather than the raw category ("space-stations", etc.)
+    const key = categoryToFilterKey(sat.category);
+    counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
 }
