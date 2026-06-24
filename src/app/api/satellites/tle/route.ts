@@ -2,126 +2,142 @@ import { NextResponse } from "next/server";
 
 /**
  * Server-side TLE proxy for CelesTrak.
- * Avoids CORS issues with direct browser requests and handles rate limiting.
  *
- * Caching strategy:
- * - Small groups (< 2MB): use Next.js fetch cache via `next.revalidate`
- * - Starlink (> 2MB): skip Next.js fetch cache (2MB limit) — the response
- *   `Cache-Control` header handles caching at the CDN/browser level instead.
+ * Two modes:
+ *  GET /api/satellites/tle?all=1      — fetches ALL groups in parallel, returns
+ *                                       newline-delimited JSON: one JSON object
+ *                                       per line, each { group, category, tle }
+ *  GET /api/satellites/tle?group=X    — fetches a single group (legacy / fallback)
+ *
+ * Using ?all=1 means one serverless function invocation instead of 8, which
+ * avoids Netlify's per-function timeout killing individual group fetches.
  */
 
 const CELESTRAK_BASE = "https://celestrak.org/NORAD/elements/gp.php";
-
-/**
- * Supplemental Starlink URL — recommended alternative to the rate-limited GROUP endpoint.
- */
 const CELESTRAK_STARLINK_URL =
   "https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=tle";
 
+// All groups to fetch when ?all=1 is used
+const ALL_GROUPS: Array<{ group: string; celestrakGroup: string; category: string }> = [
+  { group: "stations", celestrakGroup: "stations",  category: "space-stations" },
+  { group: "gps-ops",  celestrakGroup: "gps-ops",   category: "gps" },
+  { group: "weather",  celestrakGroup: "weather",   category: "weather" },
+  { group: "geo",      celestrakGroup: "geo",        category: "communication" },
+  { group: "resource", celestrakGroup: "resource",  category: "earth-observation" },
+  { group: "science",  celestrakGroup: "science",   category: "scientific" },
+  { group: "starlink", celestrakGroup: "__starlink__", category: "starlink" },
+  { group: "military", celestrakGroup: "military",  category: "military" },
+];
+
 const GROUP_MAP: Record<string, string> = {
-  stations: "stations",
-  starlink: "__starlink__", // handled specially
+  stations:  "stations",
+  starlink:  "__starlink__",
   "gps-ops": "gps-ops",
-  weather: "weather",
-  geo: "geo",
-  resource: "resource",
-  science: "science",
-  military: "military",
+  weather:   "weather",
+  geo:       "geo",
+  resource:  "resource",
+  science:   "science",
+  military:  "military",
 };
 
-/** Groups whose TLE payload regularly exceeds Next.js's 2 MB fetch-cache limit. */
-const LARGE_GROUPS = new Set(["__starlink__"]);
+async function fetchOneTLEGroup(celestrakGroup: string): Promise<string> {
+  const url =
+    celestrakGroup === "__starlink__"
+      ? CELESTRAK_STARLINK_URL
+      : `${CELESTRAK_BASE}?GROUP=${celestrakGroup}&FORMAT=tle`;
+
+  // 8 second timeout per group — keeps total well under Netlify's 26s limit
+  const resp = await fetch(url, {
+    signal: AbortSignal.timeout(8_000),
+    headers: {
+      Accept: "text/plain",
+      "User-Agent": "ProjectZenith/1.0 (Space Education Platform)",
+    },
+    cache: "no-store",
+  });
+
+  if (!resp.ok) {
+    // Starlink-specific fallback via active catalog
+    if (celestrakGroup === "__starlink__") {
+      const fb = await fetch(`${CELESTRAK_BASE}?GROUP=active&FORMAT=tle`, {
+        signal: AbortSignal.timeout(8_000),
+        headers: { Accept: "text/plain", "User-Agent": "ProjectZenith/1.0" },
+        cache: "no-store",
+      });
+      if (fb.ok) {
+        const raw = await fb.text();
+        const lines = raw.split("\n");
+        const out: string[] = [];
+        for (let i = 0; i < lines.length - 2; i++) {
+          if (lines[i]?.trim().toUpperCase().includes("STARLINK")) {
+            out.push(lines[i]!, lines[i + 1]!, lines[i + 2]!);
+            i += 2;
+          }
+        }
+        return out.join("\n");
+      }
+    }
+    return "";
+  }
+
+  return resp.text();
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const group = searchParams.get("group");
+  const fetchAll = searchParams.get("all") === "1";
 
-  if (!group || !GROUP_MAP[group]) {
-    return NextResponse.json(
-      { error: "Invalid group parameter" },
-      { status: 400 }
+  // ── Mode 1: fetch all groups in one call ─────────────────────────────────
+  if (fetchAll) {
+    const results = await Promise.allSettled(
+      ALL_GROUPS.map(async (g) => {
+        const tle = await fetchOneTLEGroup(g.celestrakGroup);
+        return { group: g.group, category: g.category, tle };
+      })
     );
-  }
 
-  const groupKey = GROUP_MAP[group]!;
-  const isLarge = LARGE_GROUPS.has(groupKey);
-
-  const url =
-    groupKey === "__starlink__"
-      ? CELESTRAK_STARLINK_URL
-      : `${CELESTRAK_BASE}?GROUP=${groupKey}&FORMAT=tle`;
-
-  try {
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(30_000),
-      headers: {
-        Accept: "text/plain",
-        "User-Agent": "ProjectZenith/1.0 (Space Education Platform)",
-      },
-      // Skip Next.js fetch cache for large payloads to avoid the 2 MB limit
-      // warning. Small groups keep server-side revalidation (5 min).
-      ...(isLarge ? { cache: "no-store" } : { next: { revalidate: 300 } }),
-    });
-
-    if (!response.ok) {
-      // Starlink fallback: fetch the full active catalog and filter locally
-      if (groupKey === "__starlink__") {
-        const fallbackUrl = `${CELESTRAK_BASE}?GROUP=active&FORMAT=tle`;
-        const fallbackResp = await fetch(fallbackUrl, {
-          signal: AbortSignal.timeout(20_000),
-          headers: {
-            Accept: "text/plain",
-            "User-Agent": "ProjectZenith/1.0 (Space Education Platform)",
-          },
-          cache: "no-store",
-        });
-
-        if (fallbackResp.ok) {
-          const text = await fallbackResp.text();
-          const lines = text.split("\n");
-          const starlinkLines: string[] = [];
-          for (let i = 0; i < lines.length - 2; i++) {
-            if (lines[i]?.trim().toUpperCase().includes("STARLINK")) {
-              starlinkLines.push(lines[i]!, lines[i + 1]!, lines[i + 2]!);
-              i += 2;
-            }
-          }
-          if (starlinkLines.length > 0) {
-            return new NextResponse(starlinkLines.join("\n"), {
-              status: 200,
-              headers: {
-                "Content-Type": "text/plain",
-                // 5 min fresh, serve stale for up to 2 min while revalidating
-                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=120",
-              },
-            });
-          }
-        }
+    // Build newline-delimited JSON — one object per line
+    const lines: string[] = [];
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value.tle.length > 50) {
+        lines.push(JSON.stringify(r.value));
       }
-
-      return NextResponse.json(
-        { error: `CelesTrak returned ${response.status}` },
-        { status: response.status }
-      );
     }
 
-    const text = await response.text();
+    if (lines.length === 0) {
+      return NextResponse.json({ error: "All TLE fetches failed" }, { status: 502 });
+    }
 
+    return new NextResponse(lines.join("\n"), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/x-ndjson",
+        // Cache at CDN for 3 min, serve stale for 2 min during revalidation
+        "Cache-Control": "public, s-maxage=180, stale-while-revalidate=120",
+      },
+    });
+  }
+
+  // ── Mode 2: single group (legacy) ────────────────────────────────────────
+  const group = searchParams.get("group");
+  if (!group || !GROUP_MAP[group]) {
+    return NextResponse.json({ error: "Invalid group parameter" }, { status: 400 });
+  }
+
+  try {
+    const text = await fetchOneTLEGroup(GROUP_MAP[group]!);
+    if (!text || text.length < 50) {
+      return NextResponse.json({ error: "Empty TLE response" }, { status: 502 });
+    }
     return new NextResponse(text, {
       status: 200,
       headers: {
         "Content-Type": "text/plain",
-        // Larger groups get a longer stale window since they change less often
-        "Cache-Control": isLarge
-          ? "public, s-maxage=300, stale-while-revalidate=300"
-          : "public, s-maxage=180, stale-while-revalidate=60",
+        "Cache-Control": "public, s-maxage=180, stale-while-revalidate=60",
       },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: `Failed to fetch TLE data: ${message}` },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: `TLE fetch failed: ${message}` }, { status: 502 });
   }
 }

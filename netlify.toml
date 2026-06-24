@@ -1,0 +1,19 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Increase serverless function timeout to 26s (Netlify free tier maximum).
+# The TLE bulk proxy fetches 8 CelesTrak groups in parallel — needs enough
+# time for all parallel HTTP requests to complete before responding.
+[functions]
+  node_bundler = "esbuild"
+  included_files = []
+
+[functions."*"]
+  timeout = 26
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
