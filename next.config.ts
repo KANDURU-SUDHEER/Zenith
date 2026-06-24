@@ -2,7 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,
-  turbopack: {},
+  // NOTE: turbopack intentionally removed.
+  // Turbopack recompiles Cesium's raw ESM source under strict mode, which hits
+  // octal escape sequences in template literals — illegal in strict mode.
+  // Webpack resolves import("cesium") to the pre-built, already-sanitized
+  // bundle (node_modules/cesium/Build/Cesium), avoiding the syntax error entirely.
+
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "apod.nasa.gov" },
@@ -29,12 +34,34 @@ const nextConfig: NextConfig = {
     ],
     formats: ["image/avif", "image/webp"],
   },
-  // Reduce bundle by excluding unused packages from server bundle
+
+  // Cesium is client-only — keep it out of the server bundle
   serverExternalPackages: ["astronomy-engine"],
-  // Experimental optimizations
+
+  // Prevent webpack from trying to polyfill Node built-ins that Cesium
+  // references in its source but never actually uses in the browser.
+  webpack(config, { isServer }) {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        http: false,
+        https: false,
+        zlib: false,
+        path: false,
+        stream: false,
+        crypto: false,
+        url: false,
+        os: false,
+      };
+    }
+    return config;
+  },
+
   experimental: {
-    // Optimize CSS
-    optimizeCss: false, // Requires critters — disabled unless installed
+    optimizeCss: false,
   },
 };
 
