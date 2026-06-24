@@ -56,6 +56,25 @@ const nextConfig: NextConfig = {
         url: false,
         os: false,
       };
+
+      // @spz-loader/core (a Gaussian Splat decoder pulled in by @cesium/engine) embeds a
+      // compiled WASM binary as inline template literal strings. Those strings contain \00
+      // sequences (null byte followed by ASCII '0'). Webpack wraps every ESM module in strict
+      // mode, which makes \00 inside a template literal an illegal legacy octal escape:
+      //
+      //   SyntaxError: Octal escape sequences are not allowed in template strings
+      //
+      // This crash causes chunk 5782 to fail, which in turn makes import("cesium") reject,
+      // freezing the globe at "[INIT] before import" in production.
+      //
+      // The fix: alias @spz-loader/core to false (empty module). Cesium's GltfSpzLoader
+      // — the only consumer of this package — handles a missing import gracefully.
+      // The feature lost is loading .spz Gaussian Splat point-cloud files, which this
+      // application does not use.
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        "@spz-loader/core": false,
+      };
     }
     return config;
   },
