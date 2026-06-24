@@ -169,6 +169,8 @@ export function CesiumGlobe() {
     let resizeObserver: ResizeObserver | null = null;
     let handler: InstanceType<typeof import("cesium").ScreenSpaceEventHandler> | null = null;
 
+    console.log("[CESIUM] mounted");
+
     const initCesium = async () => {
       const { setReady, setLoadingPhase, setLoadingProgress, setError } = storeSettersRef.current;
       try {
@@ -508,6 +510,7 @@ export function CesiumGlobe() {
     initCesium();
 
     return () => {
+      console.log("[CESIUM] unmounted");
       console.log("[INIT] Cleanup: unmounting CesiumGlobe");
       mounted = false;
       resizeObserver?.disconnect();
