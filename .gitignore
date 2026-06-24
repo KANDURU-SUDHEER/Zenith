@@ -30,11 +30,22 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — local overrides are never committed
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# .env.example IS committed — it contains only placeholders, no real secrets
 
 # vercel
 .vercel
+
+# editor settings (can contain personal/machine-specific config)
+.vscode/settings.json
+
+
 
 # typescript
 *.tsbuildinfo

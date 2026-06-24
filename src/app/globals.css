@@ -1,26 +1,588 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* PRIMARY PALETTE - Dark Premium Layers */
+  --color-bg-0: #080809;
+  --color-bg-1: #0D0E10;
+  --color-bg-2: #131417;
+  --color-bg-3: #191B1F;
+
+  /* TEXT HIERARCHY */
+  --color-white: #FAFAF8;
+  --color-muted: #A8A9AD;
+  --color-secondary: #75777D;
+
+  /* ACCENT COLORS */
+  --color-live: #00C16A;
+  --color-live-glow: rgba(0, 193, 106, 0.12);
+  --color-amber: #F4A524;
+  --color-amber-warm: #E7A850;
+  --color-ivory: #E7E3D8;
+  --color-mission-title: #CFC5B1;
+
+  /* SATELLITE COLORS - Muted Professional */
+  --color-sat-station: #F4A524;
+  --color-sat-gps: #00C16A;
+  --color-sat-starlink: #C5C7CC;
+  --color-sat-weather: #90949C;
+  --color-sat-misc: #D8D8D4;
+
+  /* BORDERS - Ultra Subtle */
+  --color-border-base: rgba(255, 255, 255, 0.06);
+  --color-border-card: rgba(255, 255, 255, 0.04);
+  --color-border-hover: rgba(255, 255, 255, 0.08);
+  --color-border-focus: rgba(244, 165, 36, 0.4);
+
+  /* CARD COLORS */
+  --color-card-bg: #111215;
+  --color-card-hover: #15171B;
+
+  /* LEGACY MAPPINGS (for gradual migration) */
+  --color-space-950: #080809;
+  --color-space-900: #0D0E10;
+  --color-space-800: #131417;
+  --color-space-700: #191B1F;
+
+  --color-cream-100: #FAFAF8;
+  --color-cream-200: #E7E3D8;
+  --color-cream-300: #CFC5B1;
+  --color-cream-400: #A8A9AD;
+  --color-cream-500: #75777D;
+  --color-cream-600: #75777D;
+
+  --color-cherry-900: #191B1F;
+  --color-cherry-800: #191B1F;
+  --color-cherry-700: #F4A524;
+  --color-cherry-600: #F4A524;
+  --color-cherry-500: #F4A524;
+  --color-cherry-400: #F4A524;
+  --color-cherry-300: #E7A850;
+
+  --color-star-white: #FAFAF8;
+  
+  --color-surface-primary: rgba(13, 14, 16, 0.95);
+  --color-surface-secondary: rgba(19, 20, 23, 0.85);
+  --color-surface-glass: rgba(255, 255, 255, 0.03);
+  --color-surface-glass-cream: rgba(255, 255, 255, 0.04);
+
+  --color-border-glow: rgba(244, 165, 36, 0.25);
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-cream: rgba(255, 255, 255, 0.08);
+
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+
+  /* Spacing */
+  --spacing-18: 4.5rem;
+  --spacing-88: 22rem;
+  --spacing-128: 32rem;
+
+  /* Border Radius - Refined */
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+
+  /* Shadows - Subtle Premium */
+  --shadow-card: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Base Styles */
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #080809;
+  color: #FAFAF8;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Premium Card Utility - Linear/Vercel Style */
+.card {
+  background: #111215;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.card:hover {
+  background: #15171B;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Glass Effect - Minimal */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Glow Effects - Maximum Restraint */
+.glow-live {
+  box-shadow: 0 0 0 0 rgba(0, 193, 106, 0.12);
+}
+
+.glow-amber {
+  box-shadow: 0 0 0 0 rgba(244, 165, 36, 0.12);
+}
+
+/* Scrollbar - Minimal Dark */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #080809;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Cesium Viewer */
+.cesium-viewer,
+.cesium-widget {
+  position: relative;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: block;
+}
+
+.cesium-viewer-cesiumWidgetContainer {
+  width: 100%;
+  height: 100%;
+}
+
+.cesium-widget canvas {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.cesium-viewer-bottom,
+.cesium-widget-credits {
+  display: none !important;
+}
+
+/* Accessibility — Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* View Transitions */
+.view-transition-enter {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Stable Numeric Display - Prevents layout shift when numbers change */
+.stable-numeric {
+  display: inline-block;
+  min-width: 4.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.stable-numeric-sm {
+  display: inline-block;
+  min-width: 3.5rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.stable-numeric-lg {
+  display: inline-block;
+  min-width: 6rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Focus ring for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid rgba(244, 165, 36, 0.6);
+  outline-offset: 2px;
+}
+
+/* Animations for toast and UI elements */
+@keyframes animate-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-from-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slide-in-from-bottom {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes ripple {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+@keyframes marker-bounce {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-8px); }
+  50% { transform: translateY(-4px); }
+  70% { transform: translateY(-6px); }
+}
+
+@keyframes marker-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(0, 193, 106, 0.6), 0 0 20px rgba(0, 193, 106, 0.25); }
+  50% { box-shadow: 0 0 16px rgba(0, 193, 106, 0.9), 0 0 40px rgba(0, 193, 106, 0.4); }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: animate-in 0.3s ease-out;
+}
+
+.fade-in {
+  animation: animate-in 0.3s ease-out;
+}
+
+.slide-in-from-right-4 {
+  animation: slide-in-from-right 0.3s ease-out;
+}
+
+.slide-in-from-bottom-2 {
+  animation: slide-in-from-bottom 0.3s ease-out;
+}
+
+.animate-ripple {
+  animation: ripple 1.5s ease-out infinite;
+}
+
+.animate-marker-bounce {
+  animation: marker-bounce 0.6s ease-out;
+}
+
+.animate-marker-glow {
+  animation: marker-glow 2s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.3s ease-out;
+}
+
+/* Selection */
+::selection {
+  background: rgba(244, 165, 36, 0.25);
+  color: var(--color-white);
+}
+
+/* Interactive cards - Minimal Hover */
+.card-interactive {
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.2s ease;
+}
+
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Buttons — press feedback */
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Smooth view transitions */
+.view-transition-enter {
+  animation: view-enter 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes view-enter {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Smooth counter animation */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* GPU-accelerated transforms */
+.gpu {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Earth Globe rotation — 6 minutes (360 seconds) */
+@keyframes earth-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-earth-rotate {
+  animation: earth-rotate 360s linear infinite;
+}
+
+/* Cloud layer rotation — slightly slower than earth */
+@keyframes cloud-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-cloud-rotate {
+  animation: cloud-rotate 400s linear infinite;
+}
+
+/* Atmosphere pulse */
+@keyframes atmosphere-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.03); opacity: 1; }
+}
+
+.animate-atmosphere {
+  animation: atmosphere-pulse 4s ease-in-out infinite;
+}
+
+/* ================================================================
+   PROJECT ZENITH — LANDING PAGE CINEMATIC THEME
+   ================================================================ */
+
+:root {
+  --zenith-bg: #020a04;
+  --zenith-ink: #f0fff4;
+  --zenith-muted: #a0b8a8;
+  --zenith-blue: #00e676;
+  --zenith-purple: #00c853;
+  --zenith-sun: #ffd2a0;
+  --zenith-nav-h: 72px;
+}
+
+/* Prevent horizontal scroll globally */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+  width: 100%;
+}
+
+/* Ensure all interactive elements meet 44px touch target minimum */
+button, a, [role="button"], [role="tab"], [role="checkbox"] {
+  touch-action: manipulation;
+}
+
+/* Minimum touch target size helper */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Landscape phone: reduce header/timeline height to give more canvas space */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* Compress the dashboard header */
+  header.dashboard-header {
+    height: 48px !important;
+  }
+  /* Hide labels in mobile nav on landscape */
+  .mobile-nav-label {
+    display: none;
+  }
+}
+
+.zenith-root {
+  background-color: var(--zenith-bg);
+  color: var(--zenith-ink);
+}
+
+.zenith-root * {
+  box-sizing: border-box;
+}
+
+.text-gradient-zenith {
+  background-image: linear-gradient(105deg, var(--zenith-blue) 0%, var(--zenith-purple) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.glass-panel {
+  background: rgba(4, 14, 8, 0.55);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(0, 230, 118, 0.10);
+}
+
+/* Primary CTA button */
+.btn-zenith-primary {
+  background-image: linear-gradient(105deg, var(--zenith-blue) 0%, var(--zenith-purple) 100%);
+  transition: opacity 0.2s ease;
+  will-change: opacity;
+}
+.btn-zenith-primary:hover {
+  opacity: 0.88;
+}
+.btn-zenith-primary:active {
+  transform: scale(0.975) translateY(1px);
+  opacity: 0.80;
+}
+
+/* Film grain overlay */
+.film-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Radial vignette */
+.vignette {
+  background: radial-gradient(ellipse 90% 80% at 60% 45%, transparent 40%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+/* PNG objects: screen blend so black backgrounds disappear */
+.space-object {
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+/* GPU acceleration for floating/parallax elements */
+[data-zenith-float],
+.zenith-parallax {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Canvas elements */
+canvas {
+  display: block;
+}
+
+/* Section contain */
+section {
+  contain: layout style paint;
+}
+
+/* Feature card hover lift */
+.feature-card {
+  will-change: transform;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease;
+}
+.feature-card:hover {
+  transform: translateY(-3px) translateZ(0);
+}
+
+/* Scroll performance */
+canvas,
+[data-zenith-float],
+.zenith-parallax {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Zenith keyframes */
+@keyframes zenith-twinkle {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 1;    }
+}
+
+@keyframes zenith-meteor {
+  0%   { transform: translate3d(0, 0, 0)         rotate(28deg); opacity: 0; }
+  8%   { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { transform: translate3d(620px, 360px, 0) rotate(28deg); opacity: 0; }
+}
+
+@keyframes zenith-led {
+  0%, 100% { opacity: 0.2; }
+  50%       { opacity: 1;   }
+}
+
+@keyframes zenith-pulse-ring {
+  0%   { transform: translate(-50%, -50%) scale(0);   opacity: 0.7; }
+  100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0;   }
+}
+
+@keyframes zenith-atmosphere-breath {
+  0%, 100% { opacity: 0.85; transform: scale(1.00); }
+  50%       { opacity: 1.00; transform: scale(1.015); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .space-object,
+  [data-zenith-float] {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ── CPU-free status dot pulse ──────────────────────────────────────────────
+   Replaces Framer Motion repeat:Infinity pulsing dots.
+   Pure CSS — compositor-only, zero JS frame budget.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes zenith-dot-pulse {
+  0%, 100% { opacity: 1;   }
+  50%       { opacity: 0.3; }
+}
+
+.zenith-dot-pulse {
+  animation: zenith-dot-pulse 1.4s ease-in-out infinite;
+}
+
+.zenith-dot-pulse-slow {
+  animation: zenith-dot-pulse 1.8s ease-in-out infinite;
+}
+
+/* Variable delay helpers */
+.zenith-dot-pulse-d1 { animation-delay: 0.3s; }
+.zenith-dot-pulse-d2 { animation-delay: 0.6s; }
+.zenith-dot-pulse-d3 { animation-delay: 0.9s; }
+.zenith-dot-pulse-d4 { animation-delay: 1.2s; }
+
+/* ── Rotating orbit icon (FinalCTA) ─────────────────────────────────────────
+   Replaces Framer Motion rotate:360 repeat:Infinity duration:30s.
+   ─────────────────────────────────────────────────────────────────────────── */
+@keyframes zenith-spin-30s {
+  from { transform: rotate(0deg);   }
+  to   { transform: rotate(360deg); }
+}
+
+.zenith-spin-30s {
+  animation: zenith-spin-30s 30s linear infinite;
 }
