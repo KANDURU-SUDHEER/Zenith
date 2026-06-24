@@ -172,35 +172,41 @@ export function CesiumGlobe() {
     const initCesium = async () => {
       const { setReady, setLoadingPhase, setLoadingProgress, setError } = storeSettersRef.current;
       try {
-        // Phase 1: Initializing
         setLoadingPhase("initializing");
         setLoadingProgress(10);
 
+        // ── IMPORT ──────────────────────────────────────────────────────────
+        console.log("[INIT] before import");
         if (!Cesium) {
           Cesium = await import("cesium");
         }
+        console.log("[INIT] after import");
+
         const CesiumLib = Cesium;
         setGlobalCesium(CesiumLib);
 
-        if (!containerRef.current || !mounted) return;
+        if (!containerRef.current || !mounted) {
+          console.log("[INIT] aborted — container gone or component unmounted");
+          return;
+        }
 
         setLoadingProgress(20);
 
         (window as unknown as Record<string, unknown>)["CESIUM_BASE_URL"] = "/cesium/";
 
-        // Ion Token Configuration
         const ionToken = process.env.NEXT_PUBLIC_CESIUM_ION_TOKEN;
         const hasIonToken = !!ionToken && ionToken.length > 10;
+        console.log("[INIT] ion token present:", hasIonToken);
 
         if (hasIonToken) {
           CesiumLib.Ion.defaultAccessToken = ionToken;
         }
 
-        // Phase 2: Terrain
+        // ── TERRAIN ─────────────────────────────────────────────────────────
+        console.log("[INIT] before terrain");
         setLoadingPhase("terrain");
         setLoadingProgress(35);
 
-        // Viewer Configuration
         const viewerOptions: Record<string, unknown> = {
           animation: false,
           baseLayerPicker: false,
@@ -255,23 +261,26 @@ export function CesiumGlobe() {
           );
         }
 
-        // Phase 3: Imagery
+        console.log("[INIT] after terrain");
+
+        // ── IMAGERY ─────────────────────────────────────────────────────────
+        console.log("[INIT] before imagery");
         setLoadingPhase("imagery");
         setLoadingProgress(55);
 
+        // ── VIEWER ──────────────────────────────────────────────────────────
+        console.log("[INIT] before viewer");
         const viewer = new CesiumLib.Viewer(
           containerRef.current,
           viewerOptions as ConstructorParameters<typeof CesiumLib.Viewer>[1]
         );
+        console.log("[INIT] after viewer");
 
-        // Cap resolution scale to 1.5 on high-DPI screens — full devicePixelRatio
-        // (2.0+) doubles GPU fill work with minimal visible benefit at globe scale.
         viewer.resolutionScale = Math.min(window.devicePixelRatio || 1, 1.5);
 
         viewerRef.current = viewer;
         setGlobalViewer(viewer);
 
-        // Camera Constraints
         const controller = viewer.scene.screenSpaceCameraController;
         controller.minimumZoomDistance = 1_000_000;
         controller.maximumZoomDistance = 45_000_000;
@@ -295,10 +304,12 @@ export function CesiumGlobe() {
             modifier: CesiumLib.KeyboardEventModifier.CTRL,
           },
         ];
-
         controller.enableCollisionDetection = true;
 
-        // Phase 4: Environment
+        console.log("[INIT] after imagery");
+
+        // ── ENVIRONMENT ─────────────────────────────────────────────────────
+        console.log("[INIT] before environment");
         setLoadingPhase("environment");
         setLoadingProgress(75);
 
@@ -349,6 +360,8 @@ export function CesiumGlobe() {
           scene.skyAtmosphere.saturationShift = 0.0;
           scene.skyAtmosphere.brightnessShift = 0.0;
         }
+
+        console.log("[INIT] after environment");
 
         setLoadingProgress(90);
 
@@ -473,14 +486,18 @@ export function CesiumGlobe() {
         });
         resizeObserver.observe(containerRef.current);
 
-        // Complete — mark ready after the next render cycle instead of a
-        // fixed timeout so it works correctly on both fast and slow hardware.
+        // ── READY ───────────────────────────────────────────────────────────
+        console.log("[INIT] before ready");
         setLoadingProgress(100);
         setLoadingPhase("complete");
         requestAnimationFrame(() => {
-          if (mounted) setReady(true);
+          if (mounted) {
+            console.log("[INIT] after ready");
+            setReady(true);
+          }
         });
       } catch (err) {
+        console.error("[INIT ERROR]", err);
         if (mounted) {
           const message = err instanceof Error ? err.message : "Failed to load globe";
           setError(message);
@@ -491,9 +508,14 @@ export function CesiumGlobe() {
     initCesium();
 
     return () => {
+      console.log("[INIT] Cleanup: unmounting CesiumGlobe");
       mounted = false;
       resizeObserver?.disconnect();
       handler?.destroy();
+      // Reset globe store so next mount shows loading screen properly
+      storeSettersRef.current.setReady(false);
+      storeSettersRef.current.setLoadingPhase("initializing");
+      storeSettersRef.current.setLoadingProgress(0);
       if (viewerRef.current && !viewerRef.current.isDestroyed()) {
         viewerRef.current.destroy();
         viewerRef.current = null;
