@@ -11,6 +11,7 @@ interface MobileNavProps {
   onViewChange: (view: DashboardView) => void;
   onOpenSkyGuide: () => void;
   onOpenTimeline: () => void;
+  skyGuideOpen?: boolean;
 }
 
 type NavItemId = DashboardView | "ai";
@@ -37,25 +38,30 @@ const NAV_ITEMS: NavItem[] = [
  * Mobile bottom navigation bar.
  *
  * NEVER hidden — always rendered regardless of panel state.
- * z-50 ensures it sits above sidebars (which are z-40/z-50 but anchored in
- * the document flow, not in the nav stacking context).
+ * z-50 ensures it sits above sidebars.
+ * min-h-14 instead of h-14 so safe-area padding expands the bar height
+ * rather than clipping icons inside a fixed-height box.
  */
 export function MobileNav({
   activeView,
   onViewChange,
   onOpenSkyGuide,
+  skyGuideOpen = false,
 }: MobileNavProps) {
   return (
     <nav
-      className="relative z-50 flex h-14 shrink-0 items-center justify-around border-t border-[rgba(255,255,255,0.06)] bg-[#0D0E10]/98 backdrop-blur-xl"
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      className="relative z-50 flex shrink-0 items-center justify-around border-t border-[rgba(255,255,255,0.06)] bg-[#0D0E10]/98 backdrop-blur-xl"
+      style={{
+        minHeight: "3.5rem",                              // 56px base
+        paddingBottom: "env(safe-area-inset-bottom, 0px)", // expands bar on iPhone
+      }}
       role="tablist"
       aria-label="Main navigation"
     >
       {NAV_ITEMS.map((item) => {
         const isActive =
           item.id === "ai"
-            ? false
+            ? skyGuideOpen
             : activeView === (item.id as DashboardView);
 
         const handlePress = () => {

@@ -21,7 +21,91 @@ import { CloudOverlay } from "./cloud-overlay";
 let Cesium: typeof import("cesium") | null = null;
 
 /**
- * Places or updates the marker entity on the Cesium globe with animated appearance.
+ * Draws a classic location-pin (teardrop + dot) onto an offscreen canvas
+ * and returns it for use as a Cesium billboard image.
+ *
+ * Shape: circle head at the top, tapers to a sharp point at the bottom.
+ * Colours: white fill, solid blue (#2563eb) outline and inner dot.
+ * Rendered at 2× for retina sharpness.
+ */
+function buildLocationPinCanvas(CesiumLib: typeof import("cesium")): HTMLCanvasElement {
+  void CesiumLib;
+  const DPR = 2;
+  const LW  = 28;   // logical width  (px)
+  const LH  = 40;   // logical height (px)
+
+  const canvas = document.createElement("canvas");
+  canvas.width  = LW * DPR;
+  canvas.height = LH * DPR;
+  const ctx = canvas.getContext("2d")!;
+  ctx.scale(DPR, DPR);
+
+  // Pin dimensions
+  const cx  = LW / 2;       // horizontal centre = 14
+  const r   = LW / 2 - 2;  // circle radius     = 12
+  const cy  = r + 2;        // circle centre y   = 14
+  const tip = LH - 1;       // tip y             = 39
+
+  // Drop shadow so the pin lifts off the globe surface
+  ctx.shadowColor   = "rgba(0, 0, 0, 0.40)";
+  ctx.shadowBlur    = 5 * DPR;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 2 * DPR;
+
+  // ── Teardrop path ────────────────────────────────────────────────────────
+  // Draw using bezier curves: circle top + two bezier sides meeting at tip
+  ctx.beginPath();
+  // Start at top of circle
+  ctx.moveTo(cx, cy - r);
+  // Right arc: top → right tangent point (~90°)
+  ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false); // top → bottom-right
+  // Right side bezier to tip
+  ctx.bezierCurveTo(
+    cx + r * 0.6, cy + r * 0.9,   // cp1
+    cx + r * 0.2, tip - r * 0.4,  // cp2
+    cx, tip                        // tip
+  );
+  // Left side bezier from tip
+  ctx.bezierCurveTo(
+    cx - r * 0.2, tip - r * 0.4,  // cp1
+    cx - r * 0.6, cy + r * 0.9,   // cp2
+    cx - r, cy                     // back to left tangent point
+  );
+  // Left arc: bottom-left → top
+  ctx.arc(cx, cy, r, Math.PI, -Math.PI / 2, false);
+  ctx.closePath();
+
+  // Fill white body
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+
+  // Blue outline
+  ctx.shadowColor = "transparent";
+  ctx.strokeStyle = "#2563eb";
+  ctx.lineWidth   = 2.5;
+  ctx.stroke();
+
+  // Inner filled circle (the "pin hole")
+  ctx.beginPath();
+  ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
+  ctx.fillStyle = "#2563eb";
+  ctx.fill();
+
+  return canvas;
+}
+
+// Cache the pin canvas so we only draw it once per session
+let _pinCanvas: HTMLCanvasElement | null = null;
+
+function getPinCanvas(CesiumLib: typeof import("cesium")): HTMLCanvasElement {
+  if (!_pinCanvas) _pinCanvas = buildLocationPinCanvas(CesiumLib);
+  return _pinCanvas;
+}
+
+/**
+ * Places or updates the location-pin marker entity on the Cesium globe.
+ * Uses a billboard with a crisp SVG-drawn pin image instead of a point dot,
+ * so it is clearly distinguishable from satellite dots.
  */
 function createMarkerEntity(
   viewer: InstanceType<typeof import("cesium").Viewer>,
@@ -34,7 +118,7 @@ function createMarkerEntity(
   if (existingEntity) {
     viewer.entities.remove(existingEntity);
   }
-  // Also remove any leftover ripple entities from previous marker
+  // Also remove any leftover ring entities from previous marker
   const toRemove = viewer.entities.values.filter(
     (e) => (e as unknown as Record<string, unknown>).__zenithMarkerRing === true
   );
@@ -43,31 +127,35 @@ function createMarkerEntity(
   }
 
   const position = CesiumLib.Cartesian3.fromDegrees(longitude, latitude);
+  const pinCanvas = getPinCanvas(CesiumLib);
 
-  // Small precise point marker
+  // Billboard using the pin canvas — verticalOrigin BOTTOM anchors the tip
+  // of the pin precisely at the selected coordinate
   const entity = viewer.entities.add({
     position,
-    point: {
-      pixelSize: 10,
-      color: CesiumLib.Color.fromCssColorString("#60a5fa"),
-      outlineColor: CesiumLib.Color.fromCssColorString("#1d4ed8"),
-      outlineWidth: 2,
-      heightReference: CesiumLib.HeightReference.CLAMP_TO_GROUND,
+    billboard: {
+      image: pinCanvas,
+      width:  28,
+      height: 40,
+      verticalOrigin:    CesiumLib.VerticalOrigin.BOTTOM,
+      horizontalOrigin:  CesiumLib.HorizontalOrigin.CENTER,
+      heightReference:   CesiumLib.HeightReference.CLAMP_TO_GROUND,
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      scaleByDistance: new CesiumLib.NearFarScalar(1e5, 1.2, 2e7, 0.7),
+      scaleByDistance: new CesiumLib.NearFarScalar(1e5, 1.1, 1.5e7, 0.65),
+      pixelOffset: new CesiumLib.Cartesian2(0, 0),
     },
   });
 
-  // Small subtle ring around the point (5km radius — barely visible, just a hint)
+  // Subtle pulsing halo ring around the pin base (50 km radius)
   const ring = viewer.entities.add({
     position,
     ellipse: {
-      semiMinorAxis: 5000,
-      semiMajorAxis: 5000,
+      semiMinorAxis: 50_000,
+      semiMajorAxis: 50_000,
       height: 0,
-      material: CesiumLib.Color.fromCssColorString("rgba(96, 165, 250, 0.08)"),
+      material: CesiumLib.Color.fromCssColorString("rgba(37, 99, 235, 0.07)"),
       outline: true,
-      outlineColor: CesiumLib.Color.fromCssColorString("rgba(96, 165, 250, 0.4)"),
+      outlineColor: CesiumLib.Color.fromCssColorString("rgba(37, 99, 235, 0.35)"),
       outlineWidth: 1.5,
       heightReference: CesiumLib.HeightReference.CLAMP_TO_GROUND,
     },

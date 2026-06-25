@@ -21,9 +21,9 @@ Track every satellite. Explore every planet. Know everything above you — from 
 
 <br/>
 
-### 🌐 [Explore the Platform → zenith-the-celestial-eye.netlify.app](https://zenith-the-celestial-eye.netlify.app/)
+###  [Explore the Platform → zenith-the-celestial-eye.netlify.app](https://zenith-the-celestial-eye.netlify.app/)
 
-### 📦 [View Source on GitHub → KANDURU-SUDHEER/Zenith](https://github.com/KANDURU-SUDHEER/Zenith)
+###  [View Source on GitHub → KANDURU-SUDHEER/Zenith](https://github.com/KANDURU-SUDHEER/Zenith)
 
 <br/>
 
@@ -268,12 +268,46 @@ The centrepiece of the platform — a WebGL-powered 3D Earth with live satellite
 - ISS rendered with a dedicated high-fidelity orbital path renderer (gold dot, glowing blue future orbit, amber dashed trail)
 - **Click any satellite** → camera flies to it, the complete future orbital path draws on the globe in the satellite's category colour, the past trail renders as a dashed fade, and a detail panel opens showing: name, NORAD ID, country of origin, operator, speed (km/s · km/h · mph), altitude, inclination, lat/lng, orbital period, orbit type (LEO/MEO/GEO/HEO/SSO), and launch year
 - **Hover any satellite** → tooltip shows name, category, NORAD ID, altitude, speed, and inclination without requiring a click
+- **Click any point on the globe** → sets the observer location, drops a pin marker, and triggers all sky calculations for that coordinate
 - Day/night lighting driven by real-time sun position
 - Optional OpenWeatherMap cloud tile overlay
-- Controls: Home, North-Up, Refresh, My Location, Lighting, Clouds
 - Clicking the globe sets the observer location and triggers all sky calculations
 - Single WebGL context allocation — prevents browser context limit crashes
 - Automatic Leaflet 2D fallback when WebGL is unavailable
+
+#### Globe Controls
+
+The globe exposes a floating control panel (top-right on desktop, accessible via the Controls sidebar on mobile) with two groups of controls.
+
+**Navigation**
+
+| Control | Action |
+|---|---|
+| **Home** | Fly the camera back to the default Earth overview (0°, 20°, altitude 20,000 km) with a smooth animated transition |
+| **North Up** | Rotate the camera heading to true north while preserving the current pitch and zoom level |
+| **Refresh Data** | Immediately invalidate and re-fetch all live data sources — TLE orbital elements, ISS position, celestial engine, and APOD |
+| **My Location** | Request browser GPS, reverse-geocode the coordinates, drop a pin on the globe, and fly the camera to that location |
+
+**Environment**
+
+| Control | What it toggles | Default |
+|---|---|---|
+| **Day / Night Lighting** | Enables the sun-direction shader that darkens the night side of the Earth and renders city-light textures. Disable for a uniformly lit globe with better satellite visibility in shadow regions. | On |
+| **Clouds** | Overlays a live cloud tile layer sourced from the OpenWeatherMap Clouds API, composited on top of the globe surface. Requires `NEXT_PUBLIC_OWM_API_KEY` — the button is hidden if the key is absent. | On |
+| **Atmosphere** | Renders the atmospheric scattering halo around the Earth's limb — the blue glow visible from orbit. Disable for a sharp, clean globe edge. | On |
+
+> All three environment toggles are preserved in the globe store and restored when you return to the Globe view after switching to Radar, Solar System, or APOD.
+
+#### Location Pin Marker
+
+When an observer location is set (by clicking the globe, searching, or using GPS), a **location pin** is placed at that coordinate:
+
+- Classic teardrop pin shape rendered as a WebGL billboard — white fill with a blue outline and inner dot
+- `VerticalOrigin.BOTTOM` ensures the pin tip is anchored precisely at the selected coordinate
+- Scales with camera zoom: slightly larger when zoomed in, smaller at global view
+- `disableDepthTestDistance` keeps the pin always visible even when the globe geometry is in front of it
+- A subtle halo ring (50 km radius) is drawn around the pin base to give the selection a visible coverage indicator
+- The pin is visually distinct from satellite dots at all zoom levels and lighting conditions
 
 ---
 
@@ -527,7 +561,7 @@ Project Zenith follows a feature-based architecture with a strict separation bet
 ### Clone and Install
 
 ```bash
-git clone https://github.com/your-username/project-zenith.git
+git clone https://github.com/KANDURU-SUDHEER/Zenith
 cd project-zenith
 npm install
 ```
@@ -600,7 +634,7 @@ NEXT_PUBLIC_OWM_API_KEY=your_owm_api_key_here
 
 ---
 
-### Mobile Optimisations
+### Mobile Optimizations
 
 Zenith is built mobile-first — not mobile-adapted. The touch experience is a first-class concern.
 

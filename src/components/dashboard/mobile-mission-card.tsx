@@ -69,7 +69,7 @@ export const MobileMissionCard = memo(function MobileMissionCard() {
           exit={{ y: 80, opacity: 0 }}
           transition={{ type: "spring", stiffness: 380, damping: 30 }}
           className="absolute inset-x-3 z-30"
-          style={{ bottom: "calc(56px + env(safe-area-inset-bottom, 0px) + 8px)" }}
+          style={{ bottom: "calc(3.5rem + env(safe-area-inset-bottom, 0px) + 8px)" }}
         >
           {expanded ? (
             <ExpandedCard
@@ -109,7 +109,9 @@ const CollapsedPill = memo(function CollapsedPill({ onExpand }: { onExpand: () =
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#00C16A]" />
         LIVE
       </span>
+      {/* Always show altitude — xs breakpoint doesn't exist in Tailwind */}
       <PillAltitude />
+      {/* Velocity only on ≥480px (min-[480px]) — visible on most phones */}
       <PillVelocity />
       <button
         onClick={onExpand}
@@ -132,8 +134,9 @@ const CollapsedPill = memo(function CollapsedPill({ onExpand }: { onExpand: () =
 const PillAltitude = memo(function PillAltitude() {
   const altitude = useSatelliteStore(selectAltitude);
   if (altitude === undefined) return null;
+  // Always visible — xs breakpoint does not exist in Tailwind default config
   return (
-    <span className="hidden shrink-0 text-[11px] font-medium text-[#75777D] xs:inline">
+    <span className="shrink-0 text-[11px] font-medium text-[#75777D]">
       {altitude.toFixed(0)} km
     </span>
   );
@@ -142,8 +145,9 @@ const PillAltitude = memo(function PillAltitude() {
 const PillVelocity = memo(function PillVelocity() {
   const velocity = useSatelliteStore(selectVelocity);
   if (velocity === undefined) return null;
+  // Visible on phones ≥ 390px wide (most modern phones). Hidden on very small ones.
   return (
-    <span className="hidden shrink-0 text-[11px] font-medium text-[#75777D] sm:inline">
+    <span className="hidden shrink-0 text-[11px] font-medium text-[#75777D] min-[390px]:inline">
       {velocity.toFixed(2)} km/s
     </span>
   );
@@ -237,7 +241,7 @@ const ExpandedCard = memo(function ExpandedCard({
       {/* Scrollable telemetry */}
       <div
         className="overflow-y-auto px-4 pb-4"
-        style={{ maxHeight: "calc(50vh - 96px)" }}
+        style={{ maxHeight: "min(calc(50vh - 96px), 320px)" }}
       >
         <div className="space-y-1.5">
           {/* Static rows */}

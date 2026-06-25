@@ -50,19 +50,25 @@ export const MobileInfoSidebar = memo(function MobileInfoSidebar({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            style={{ touchAction: "none" }}
             onClick={handleBackdropClick}
             aria-hidden="true"
           />
 
-          {/* Sidebar panel */}
+          {/* Sidebar panel — stops above the bottom nav bar */}
           <motion.div
             key="info-sidebar"
             initial={{ x: "-100%" }}
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
-            className="fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden rounded-r-2xl border-r border-[rgba(255,255,255,0.06)] bg-[#0D0E10]/95 backdrop-blur-xl shadow-[4px_0_40px_rgba(0,0,0,0.6)]"
-            style={{ width: "min(85vw, 320px)" }}
+            className="fixed left-0 top-0 z-50 flex flex-col overflow-hidden rounded-r-2xl border-r border-[rgba(255,255,255,0.06)] bg-[#0D0E10]/95 backdrop-blur-xl shadow-[4px_0_40px_rgba(0,0,0,0.6)]"
+            style={{
+              width: "min(85vw, 320px)",
+              // Leave room for the nav bar (3.5rem) + safe-area so last items
+              // are always reachable without scrolling behind the nav.
+              bottom: "calc(3.5rem + env(safe-area-inset-bottom, 0px))",
+            }}
             role="dialog"
             aria-modal="true"
             aria-label="Mission Data"

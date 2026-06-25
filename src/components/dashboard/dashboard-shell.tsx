@@ -49,14 +49,60 @@ export type DashboardView = "globe" | "radar" | "solar-system" | "apod";
 // ─── Edge-swipe threshold (px from screen edge to trigger sidebar) ─────────────
 const EDGE_THRESHOLD = 30;
 
+// ─── CategoryMenuPositioned ───────────────────────────────────────────────────
+// Wraps CategoryMenu and subscribes to satellite store to shift upward
+// when a mission card is visible, preventing overlap.
+
+import { memo } from "react";
+import { useSatelliteStore } from "@/stores/satellite-store";
+
+const CategoryMenuPositioned = memo(function CategoryMenuPositioned({
+  isMobile,
+}: { isMobile: boolean }) {
+  const hasSatellite = useSatelliteStore((s) => s.selectedSatellite !== null);
+
+  return (
+    <div
+      className={[
+        "pointer-events-auto absolute left-1/2 z-20 -translate-x-1/2 transition-all duration-300",
+        isMobile ? "" : "bottom-4",
+      ].join(" ")}
+      style={
+        isMobile
+          ? {
+              // Sit above the nav bar (56px + safe-area).
+              // When a satellite card is selected, add another 64px (card 56px + 8px gap).
+              bottom: hasSatellite
+                ? "calc(8.5rem + env(safe-area-inset-bottom, 0px))"
+                : "calc(4.5rem + env(safe-area-inset-bottom, 0px))",
+            }
+          : undefined
+      }
+    >
+      <CategoryMenu />
+    </div>
+  );
+});
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function DashboardShell() {
   const [activeView, setActiveView] = useState<DashboardView>("globe");
+  // ── Mobile panel state — exclusive single source of truth ───────────────
+  // Only one panel can be open at a time on mobile.
+  // On desktop, skyGuide is managed separately (it's a full overlay).
   const [skyGuideOpen, setSkyGuideOpen] = useState(false);
-  const [mobileInfoOpen, setMobileInfoOpen] = useState(false);
-  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
-  const [mobileTimelineOpen, setMobileTimelineOpen] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<"info" | "tools" | "timeline" | null>(null);
+
+  const mobileInfoOpen     = mobilePanel === "info";
+  const mobileToolsOpen    = mobilePanel === "tools";
+  const mobileTimelineOpen = mobilePanel === "timeline";
+
+  const openMobilePanel = useCallback((panel: "info" | "tools" | "timeline") => {
+    setMobilePanel((prev) => (prev === panel ? null : panel));
+  }, []);
+
+  const closeMobilePanel = useCallback(() => setMobilePanel(null), []);
 
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
@@ -115,29 +161,53 @@ export function DashboardShell() {
       const screenW = window.innerWidth;
 
       if (dx > 0 && start.x < EDGE_THRESHOLD && !mobileInfoOpen) {
-        setMobileInfoOpen(true);
+        openMobilePanel("info");
         return;
       }
       if (dx < 0 && start.x > screenW - EDGE_THRESHOLD && !mobileToolsOpen) {
-        setMobileToolsOpen(true);
+        openMobilePanel("tools");
         return;
       }
       if (dx < -40 && mobileInfoOpen) {
-        setMobileInfoOpen(false);
+        closeMobilePanel();
         return;
       }
       if (dx > 40 && mobileToolsOpen) {
-        setMobileToolsOpen(false);
+        closeMobilePanel();
         return;
       }
     },
-    [mobileInfoOpen, mobileToolsOpen]
+    [mobileInfoOpen, mobileToolsOpen, openMobilePanel, closeMobilePanel]
   );
 
-  // ── Prefetch APOD ────────────────────────────────────────────────────────
+  // ── Android Back key — close the active panel first ──────────────────────
   useEffect(() => {
-    const id = requestIdleCallback(() => prefetchApod(), { timeout: 5000 });
-    return () => cancelIdleCallback(id);
+    if (!isMobile) return;
+    const handleBack = (e: PopStateEvent) => {
+      if (mobilePanel !== null) {
+        e.preventDefault();
+        closeMobilePanel();
+        // Push a new state so the next back press doesn't exit the app
+        history.pushState(null, "", location.href);
+      }
+    };
+    // Push an initial state so we can intercept the first back press
+    if (mobilePanel !== null) {
+      history.pushState(null, "", location.href);
+    }
+    window.addEventListener("popstate", handleBack);
+    return () => window.removeEventListener("popstate", handleBack);
+  }, [isMobile, mobilePanel, closeMobilePanel]);
+
+  // ── Prefetch APOD after idle (guarded for Safari iOS ≤17 which lacks rIC) ─
+  useEffect(() => {
+    if (typeof requestIdleCallback === "function") {
+      const id = requestIdleCallback(() => prefetchApod(), { timeout: 5000 });
+      return () => cancelIdleCallback(id);
+    }
+    // Fallback for Safari iOS ≤17
+    const t = setTimeout(() => prefetchApod(), 3000);
+    return () => clearTimeout(t);
   }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -199,13 +269,7 @@ export function DashboardShell() {
 
               {/* Category legend — only on globe view */}
               {activeView === "globe" && (
-                <div
-                  className={`pointer-events-auto absolute left-1/2 z-20 -translate-x-1/2 ${
-                    isMobile ? "bottom-[4.5rem]" : "bottom-4"
-                  }`}
-                >
-                  <CategoryMenu />
-                </div>
+                <CategoryMenuPositioned isMobile={isMobile} />
               )}
             </div>
 
@@ -257,21 +321,26 @@ export function DashboardShell() {
             {/* ── Mobile-only in-canvas overlays ───────────────────────── */}
             {isMobile && (
               <>
-                {/* Floating controls: info + search + layers */}
-                <MobileOverlayControls
-                  onOpenInfo={() => setMobileInfoOpen(true)}
-                  onOpenTools={() => setMobileToolsOpen(true)}
-                />
+                {/* Floating controls: info + search + layers — only on globe view */}
+                {activeView === "globe" && (
+                  <MobileOverlayControls
+                    onOpenInfo={() => openMobilePanel("info")}
+                    onOpenTools={() => openMobilePanel("tools")}
+                  />
+                )}
 
                 {/* Compact satellite mission card */}
                 <MobileMissionCard />
 
                 {/* Timeline drawer — slides up above nav bar */}
                 {mobileTimelineOpen && (
-                  <div className="absolute inset-x-0 bottom-14 z-30 rounded-t-2xl border-t border-[rgba(255,255,255,0.06)] bg-[#0D0E10]/95 shadow-2xl backdrop-blur-xl">
+                  <div
+                    className="absolute inset-x-0 z-30 rounded-t-2xl border-t border-[rgba(255,255,255,0.06)] bg-[#0D0E10]/95 shadow-2xl backdrop-blur-xl"
+                    style={{ bottom: "calc(3.5rem + env(safe-area-inset-bottom, 0px))" }}
+                  >
                     <button
-                      onClick={() => setMobileTimelineOpen(false)}
-                      className="flex w-full items-center justify-center py-2"
+                      onClick={closeMobilePanel}
+                      className="flex min-h-[44px] w-full items-center justify-center"
                       aria-label="Close timeline"
                     >
                       <div className="h-1 w-10 rounded-full bg-[rgba(255,255,255,0.15)]" />
@@ -306,7 +375,8 @@ export function DashboardShell() {
             activeView={activeView}
             onViewChange={setActiveView}
             onOpenSkyGuide={() => setSkyGuideOpen(true)}
-            onOpenTimeline={() => setMobileTimelineOpen((v) => !v)}
+            onOpenTimeline={() => mobilePanel === "timeline" ? closeMobilePanel() : openMobilePanel("timeline")}
+            skyGuideOpen={skyGuideOpen}
           />
         )}
 
@@ -315,13 +385,13 @@ export function DashboardShell() {
           <>
             <MobileInfoSidebar
               isOpen={mobileInfoOpen}
-              onClose={() => setMobileInfoOpen(false)}
+              onClose={closeMobilePanel}
             />
             <MobileToolsSidebar
               isOpen={mobileToolsOpen}
-              onClose={() => setMobileToolsOpen(false)}
+              onClose={closeMobilePanel}
               onOpenSkyGuide={() => setSkyGuideOpen(true)}
-              onOpenTimeline={() => setMobileTimelineOpen((v) => !v)}
+              onOpenTimeline={() => openMobilePanel("timeline")}
             />
           </>
         )}

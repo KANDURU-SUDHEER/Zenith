@@ -90,8 +90,9 @@ export function GlobeControls() {
   if (!isReady) return null;
 
   return (
+    // Hidden on mobile — navigation controls are inside the Tools sidebar on mobile
     <div
-      className="absolute right-2 top-2 z-10 flex flex-col gap-2 md:right-4 md:top-4"
+      className="absolute right-2 top-2 z-10 hidden flex-col gap-2 md:flex md:right-4 md:top-4"
       role="toolbar"
       aria-label="Globe navigation controls"
     >

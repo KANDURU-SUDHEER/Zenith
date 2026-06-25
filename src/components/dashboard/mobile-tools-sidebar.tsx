@@ -3,11 +3,20 @@
 import {
   useCallback, useEffect, useRef, memo, useState, useMemo,
 } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
+
+// Lazy-load MissionReportDialog so pdfmake is NOT in the initial bundle.
+// It only loads when the user taps "Mission Report".
+const MissionReportDialog = dynamic(
+  () =>
+    import("@/components/mission-report/mission-report-dialog").then(
+      (m) => m.MissionReportDialog
+    ),
+  { ssr: false }
+);
 import {
   X, ChevronRight,
-  // Quick actions
-  Navigation, Home, RotateCcw,
   // Filters
   Layers, CheckSquare, Square,
   // Search
@@ -15,7 +24,7 @@ import {
   // Display
   Orbit, Map, Tag, Zap, Eye,
   // Globe layers
-  Mountain, Wind, Cloud, Globe2, Building, Image,
+  Wind, Cloud, Globe2,
   // Simulation
   Play, Pause, SkipForward, SkipBack, Radio, Timer,
   // AI
@@ -23,12 +32,9 @@ import {
   // Preferences
   Settings, Cpu,
   // Icons
-  RefreshCw, MapPin, Sun,
+  Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCesiumViewer } from "@/hooks/use-cesium-viewer";
-import { useGeolocation } from "@/hooks/use-geolocation";
-import { useRefreshData } from "@/hooks/use-refresh-data";
 import { useGlobeStore } from "@/stores/globe-store";
 import {
   useRadarFilterStore, RADAR_FILTER_LIST, type RadarFilterKey,
@@ -48,7 +54,6 @@ export interface MobileToolsSidebarProps {
 }
 
 type SectionId =
-  | "quick"
   | "filters"
   | "search"
   | "display"
@@ -71,9 +76,10 @@ function formatSpeed(s: PlaybackSpeed): string {
 }
 
 function formatSimTime(d: Date): string {
-  return d.toLocaleTimeString([], {
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
-  });
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
 }
 
 // ─── Section header ───────────────────────────────────────────────────────────
@@ -151,89 +157,6 @@ function ToggleRow({
   );
 }
 
-// ─── Action button ────────────────────────────────────────────────────────────
-
-function ActionBtn({
-  icon, label, onClick, loading = false, active = false, color = "#A8A9AD",
-}: {
-  icon: React.ReactNode; label: string;
-  onClick: () => void; loading?: boolean; active?: boolean; color?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      className={cn(
-        "flex min-h-[56px] w-full items-center gap-3 rounded-xl px-4 py-3 transition-all active:scale-[0.98]",
-        active
-          ? "bg-[rgba(255,255,255,0.1)] ring-1 ring-[rgba(255,255,255,0.2)]"
-          : "bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.06)] ring-1 ring-[rgba(255,255,255,0.04)]",
-        loading && "opacity-60"
-      )}
-    >
-      <span style={{ color }}>{icon}</span>
-      <span className="text-sm font-medium text-[#FAFAF8]">{label}</span>
-      {loading && <RefreshCw className="ml-auto h-3.5 w-3.5 animate-spin text-[#75777D]" />}
-    </button>
-  );
-}
-
-
-// ─── Section: Quick Actions ───────────────────────────────────────────────────
-
-const QuickActionsSection = memo(function QuickActionsSection({
-  onClose,
-}: { onClose: () => void }) {
-  const { flyHome, orientNorth } = useCesiumViewer();
-  const { locate, isLocating } = useGeolocation();
-  const { refresh, isRefreshing } = useRefreshData();
-  const isGlobeReady = useGlobeStore((s) => s.isReady);
-
-  const actions = useMemo(() => [
-    {
-      icon: <MapPin className="h-4 w-4" />,
-      label: "My Location",
-      color: "#00C16A",
-      loading: isLocating,
-      onClick: () => { locate(); onClose(); },
-    },
-    {
-      icon: <Home className="h-4 w-4" />,
-      label: "Home View",
-      color: "#A8A9AD",
-      loading: false,
-      onClick: () => { flyHome(); onClose(); },
-    },
-    {
-      icon: <RotateCcw className="h-4 w-4" />,
-      label: "North Up",
-      color: "#A8A9AD",
-      loading: false,
-      onClick: () => { orientNorth(); onClose(); },
-    },
-    {
-      icon: <RefreshCw className="h-4 w-4" />,
-      label: "Refresh Data",
-      color: "#A8A9AD",
-      loading: isRefreshing,
-      onClick: () => { refresh(); },
-    },
-  ], [isLocating, isRefreshing, locate, flyHome, orientNorth, refresh, onClose]);
-
-  if (!isGlobeReady) {
-    return (
-      <p className="py-3 text-center text-xs text-[#75777D]">Globe loading…</p>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      {actions.map((a) => (
-        <ActionBtn key={a.label} {...a} />
-      ))}
-    </div>
-  );
-});
 
 
 // ─── Section: Satellite Filters ───────────────────────────────────────────────
@@ -340,15 +263,10 @@ const SatelliteFiltersSection = memo(function SatelliteFiltersSection() {
 
 const SearchSection = memo(function SearchSection({ onClose }: { onClose: () => void }) {
   const [localQuery, setLocalQuery] = useState("");
-  const [mounted, setMounted] = useState(false);
   const recentSearches = useSearchStore((s) => s.recentSearches);
   const searchFavorites = useSearchStore((s) => s.favorites);
   const { handleResultSelect } = useGlobalSearchActions();
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const handleSelect = useCallback((result: Parameters<typeof handleResultSelect>[0]) => {
     handleResultSelect(result);
@@ -357,13 +275,12 @@ const SearchSection = memo(function SearchSection({ onClose }: { onClose: () => 
   }, [handleResultSelect, onClose]);
 
   const displayed = useMemo(() => {
-    if (!mounted) return [];
     if (!localQuery.trim()) return recentSearches.slice(0, 6);
     const q = localQuery.toLowerCase();
     return recentSearches.filter((r) =>
       r.name.toLowerCase().includes(q)
     ).slice(0, 6);
-  }, [localQuery, recentSearches, mounted]);
+  }, [localQuery, recentSearches]);
 
   return (
     <div className="space-y-3">
@@ -387,7 +304,7 @@ const SearchSection = memo(function SearchSection({ onClose }: { onClose: () => 
       </div>
 
       {/* Favorites */}
-      {mounted && searchFavorites.length > 0 && !localQuery && (
+      {searchFavorites.length > 0 && !localQuery && (
         <div>
           <p className="mb-1.5 flex items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-wider text-[#75777D]">
             <Star className="h-3 w-3" /> Favorites
@@ -434,7 +351,7 @@ const SearchSection = memo(function SearchSection({ onClose }: { onClose: () => 
         </div>
       )}
 
-      {mounted && displayed.length === 0 && !searchFavorites.length && (
+      {displayed.length === 0 && !searchFavorites.length && (
         <p className="py-4 text-center text-xs text-[#75777D]">
           Use the search bar above the globe for full results
         </p>
@@ -553,23 +470,6 @@ const GlobeLayersSection = memo(function GlobeLayersSection() {
         onToggle={() => setAtmosphereEnabled(!atmosphereEnabled)}
         accent="#60a5fa"
       />
-      {/* These toggles are informational stubs — shown for future wiring */}
-      {([
-        { icon: <Mountain className="h-4 w-4" />, label: "Terrain" },
-        { icon: <Globe2 className="h-4 w-4" />, label: "Country Borders" },
-        { icon: <Building className="h-4 w-4" />, label: "City Labels" },
-        // eslint-disable-next-line jsx-a11y/alt-text
-        { icon: <Image className="h-4 w-4" />, label: "Satellite Imagery" },
-      ] as const).map(({ icon, label }) => (
-        <ToggleRow
-          key={label}
-          icon={icon}
-          label={label}
-          active={true}
-          onToggle={() => {/* future: wire to Cesium layer API */}}
-          accent="#A8A9AD"
-        />
-      ))}
     </div>
   );
 });
@@ -587,7 +487,7 @@ const SimTimeDisplay = memo(function SimTimeDisplay() {
       <p className="text-[10px] font-bold uppercase tracking-wider text-[#75777D]">
         {isLive ? "Live UTC" : "Simulated UTC"}
       </p>
-      <p className="mt-1 font-mono text-lg font-bold text-[#FAFAF8] tabular-nums">
+      <p className="mt-1 font-mono text-lg font-bold text-[#FAFAF8] tabular-nums" suppressHydrationWarning>
         {formatSimTime(simulatedTime)}
       </p>
       {isLive && (
@@ -661,7 +561,7 @@ const SimulationSection = memo(function SimulationSection({ onOpenTimeline, onCl
         <div className="flex items-center gap-2">
           <button
             onClick={handleSpeedDown}
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-[rgba(255,255,255,0.05)] text-[#A8A9AD] hover:bg-[rgba(255,255,255,0.08)] active:scale-95"
+            className="flex h-[44px] w-[44px] items-center justify-center rounded-lg bg-[rgba(255,255,255,0.05)] text-[#A8A9AD] hover:bg-[rgba(255,255,255,0.08)] active:scale-95"
             aria-label="Slower"
           >
             <SkipBack className="h-3.5 w-3.5" />
@@ -671,7 +571,7 @@ const SimulationSection = memo(function SimulationSection({ onOpenTimeline, onCl
           </div>
           <button
             onClick={handleSpeedUp}
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-[rgba(255,255,255,0.05)] text-[#A8A9AD] hover:bg-[rgba(255,255,255,0.08)] active:scale-95"
+            className="flex h-[44px] w-[44px] items-center justify-center rounded-lg bg-[rgba(255,255,255,0.05)] text-[#A8A9AD] hover:bg-[rgba(255,255,255,0.08)] active:scale-95"
             aria-label="Faster"
           >
             <SkipForward className="h-3.5 w-3.5" />
@@ -710,6 +610,10 @@ const AIToolsSection = memo(function AIToolsSection({
   onOpenSkyGuide,
   onClose,
 }: { onOpenSkyGuide: () => void; onClose: () => void }) {
+  // Mission Report has its own local open state so it mounts the dialog
+  // directly without routing through the AI Sky Guide.
+  const [reportOpen, setReportOpen] = useState(false);
+
   const tools = [
     {
       icon: <Sparkles className="h-4 w-4" />,
@@ -744,32 +648,42 @@ const AIToolsSection = memo(function AIToolsSection({
       label: "Mission Report",
       desc: "Generate PDF report",
       color: "#2dd4bf",
-      onClick: () => { onOpenSkyGuide(); onClose(); },
+      // Close the sidebar and open the mission report dialog directly
+      onClick: () => { onClose(); setReportOpen(true); },
     },
   ];
 
   return (
-    <div className="space-y-2">
-      {tools.map((t) => (
-        <button
-          key={t.label}
-          onClick={t.onClick}
-          className="flex min-h-[52px] w-full items-center gap-3 rounded-xl bg-[rgba(255,255,255,0.03)] px-4 py-3 text-left ring-1 ring-[rgba(255,255,255,0.05)] transition-all hover:bg-[rgba(255,255,255,0.06)] active:scale-[0.98]"
-        >
-          <span
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-            style={{ background: t.color + "18", color: t.color }}
+    <>
+      <div className="space-y-2">
+        {tools.map((t) => (
+          <button
+            key={t.label}
+            onClick={t.onClick}
+            className="flex min-h-[52px] w-full items-center gap-3 rounded-xl bg-[rgba(255,255,255,0.03)] px-4 py-3 text-left ring-1 ring-[rgba(255,255,255,0.05)] transition-all hover:bg-[rgba(255,255,255,0.06)] active:scale-[0.98]"
           >
-            {t.icon}
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#FAFAF8]">{t.label}</p>
-            <p className="text-[11px] text-[#75777D]">{t.desc}</p>
-          </div>
-          <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-[#75777D]" />
-        </button>
-      ))}
-    </div>
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+              style={{ background: t.color + "18", color: t.color }}
+            >
+              {t.icon}
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-[#FAFAF8]">{t.label}</p>
+              <p className="text-[11px] text-[#75777D]">{t.desc}</p>
+            </div>
+            <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-[#75777D]" />
+          </button>
+        ))}
+      </div>
+
+      {/* Mission Report dialog — rendered outside the sidebar so it overlays
+          the full screen correctly even after the sidebar is closed.          */}
+      <MissionReportDialog
+        isOpen={reportOpen}
+        onClose={() => setReportOpen(false)}
+      />
+    </>
   );
 });
 
@@ -922,7 +836,7 @@ const SidebarContent = memo(function SidebarContent({
   }, []); // empty dep — only on mount, never resets
 
   // ── One-open-at-a-time accordion ─────────────────────────────────────
-  const [openSection, setOpenSection] = useState<SectionId>("quick");
+  const [openSection, setOpenSection] = useState<SectionId>("filters");
 
   const toggle = useCallback((id: SectionId) => {
     setOpenSection((prev) => (prev === id ? prev : id));
@@ -934,7 +848,6 @@ const SidebarContent = memo(function SidebarContent({
     icon: React.ReactNode;
     badge?: string;
   }> = [
-    { id: "quick",      label: "Quick Actions",     icon: <Navigation className="h-3.5 w-3.5" /> },
     { id: "filters",    label: "Satellite Filters",  icon: <Layers className="h-3.5 w-3.5" /> },
     { id: "search",     label: "Search",             icon: <Search className="h-3.5 w-3.5" /> },
     { id: "display",    label: "Display",            icon: <Eye className="h-3.5 w-3.5" /> },
@@ -995,7 +908,6 @@ const SidebarContent = memo(function SidebarContent({
                   aria-hidden={!isExpanded}
                 >
                   <div className="border-t border-[rgba(255,255,255,0.04)] px-3 py-3">
-                    {sec.id === "quick"      && <QuickActionsSection onClose={onClose} />}
                     {sec.id === "filters"    && <SatelliteFiltersSection />}
                     {sec.id === "search"     && <SearchSection onClose={onClose} />}
                     {sec.id === "display"    && <DisplaySection />}
@@ -1045,7 +957,7 @@ export const MobileToolsSidebar = memo(function MobileToolsSidebar({
 
   return (
     <>
-      {/* Backdrop — only mounted when open, safe to animate-in/out */}
+      {/* Backdrop — touch-action:none prevents globe interactions bleeding through */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -1055,6 +967,7 @@ export const MobileToolsSidebar = memo(function MobileToolsSidebar({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
             className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm"
+            style={{ touchAction: "none" }}
             onClick={handleBackdrop}
             aria-hidden="true"
           />
@@ -1062,18 +975,18 @@ export const MobileToolsSidebar = memo(function MobileToolsSidebar({
       </AnimatePresence>
 
       {/* Panel — ALWAYS mounted, translated off-screen when closed.
-          spring animation for open/close, no unmount = no scroll reset. */}
+          Stops above the bottom nav bar so last section items are reachable. */}
       <motion.div
         animate={{ x: isOpen ? 0 : "100%" }}
         initial={{ x: "100%" }}
         transition={{ type: "spring", stiffness: 340, damping: 34 }}
-        className="fixed inset-y-0 right-0 z-50 flex flex-col overflow-hidden rounded-l-2xl border-l border-[rgba(255,255,255,0.06)] bg-[#0D0E10]/97 shadow-[-4px_0_40px_rgba(0,0,0,0.65)]"
+        className="fixed right-0 top-0 z-50 flex flex-col overflow-hidden rounded-l-2xl border-l border-[rgba(255,255,255,0.06)] bg-[#0D0E10]/97 shadow-[-4px_0_40px_rgba(0,0,0,0.65)]"
         style={{
           width: "min(88vw, 320px)",
           willChange: "transform",
-          // keep the sidebar on top even when pointer-events would normally
-          // reach through to the globe behind it
           pointerEvents: isOpen ? "auto" : "none",
+          // Stop above nav bar so scroll content is never hidden behind it
+          bottom: "calc(3.5rem + env(safe-area-inset-bottom, 0px))",
         }}
         role="dialog"
         aria-modal="true"

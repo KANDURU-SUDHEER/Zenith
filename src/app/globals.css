@@ -326,9 +326,29 @@ body {
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-/* Buttons — press feedback */
+/* Buttons — press feedback: removed global scale to avoid conflicting with
+   Tailwind active:scale-* utilities applied per-component */
 button:active:not(:disabled) {
-  transform: scale(0.97);
+  /* intentionally empty */
+}
+
+/* Remove iOS tap highlight flash on all interactive elements */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent accidental text selection on mobile nav, cards, and overlay labels */
+button, [role="button"], [role="tab"], nav {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Thinner scrollbar inside narrow mobile panels */
+@media (max-width: 767px) {
+  ::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
 }
 
 /* Smooth view transitions */
@@ -425,15 +445,18 @@ button, a, [role="button"], [role="tab"], [role="checkbox"] {
   min-width: 44px;
 }
 
-/* Landscape phone: reduce header/timeline height to give more canvas space */
+/* Landscape phone: reduce nav height and hide labels to maximise canvas space */
 @media (max-height: 500px) and (orientation: landscape) {
-  /* Compress the dashboard header */
   header.dashboard-header {
     height: 48px !important;
   }
-  /* Hide labels in mobile nav on landscape */
   .mobile-nav-label {
     display: none;
+  }
+  /* Reduce nav bar height in landscape so the globe gets back ~12px */
+  nav[aria-label="Main navigation"] {
+    height: 44px !important;
+    min-height: 44px !important;
   }
 }
 
