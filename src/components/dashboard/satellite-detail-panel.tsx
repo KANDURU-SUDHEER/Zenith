@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useCallback } from "react";
 import {
   X,
   Satellite,
@@ -18,26 +19,83 @@ import { useSatelliteStore } from "@/stores/satellite-store";
 import { getCategoryMeta } from "@/services/tle-service";
 import { getSatelliteMetadata } from "@/services/satellite-metadata";
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── Fine-grained selectors ───────────────────────────────────────────────────
+//
+// The key insight: subscribing to the full `selectedSatellite` object means
+// every propagation tick (which replaces the object reference) triggers a
+// re-render, even when the visual values haven't meaningfully changed.
+//
+// Solution: use individual field selectors so React.memo can bail out when
+// only sub-second floating-point changes occur. The static fields (noradId,
+// name, category, inclination, period, orbitType, launchYear) are extracted
+// by a selector that returns a stable primitive tuple — they only change when
+// a NEW satellite is selected.
+//
+// Live fields (velocity, altitude, latitude, longitude, lastUpdated) are each
+// read by a separate selector so only the changed field re-renders its row.
 
-export function SatelliteDetailPanel() {
-  const { selectedSatellite, setSelectedSatellite } = useSatelliteStore();
+// Static identity fields — changes only on NEW satellite selection
+const selectStaticId = (s: ReturnType<typeof useSatelliteStore.getState>) =>
+  s.selectedSatellite
+    ? `${s.selectedSatellite.noradId}|${s.selectedSatellite.name}|${s.selectedSatellite.category}`
+    : null;
 
-  if (!selectedSatellite) return null;
+// Live telemetry fields — each is a primitive, React bails out if unchanged
+const selectNoradId   = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.noradId;
+const selectName      = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.name;
+const selectCategory  = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.category;
+const selectVelocity  = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.velocity;
+const selectAltitude  = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.altitude;
+const selectLatitude  = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.latitude;
+const selectLongitude = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.longitude;
+const selectInclination = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.inclination;
+const selectPeriod    = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.period;
+const selectOrbitType = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.orbitType;
+const selectLaunchYear = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.launchYear;
+const selectLastUpdated = (s: ReturnType<typeof useSatelliteStore.getState>) => s.selectedSatellite?.lastUpdated;
+const selectSetSatellite = (s: ReturnType<typeof useSatelliteStore.getState>) => s.setSelectedSatellite;
 
-  const meta = getCategoryMeta(selectedSatellite.category);
-  const satMeta = getSatelliteMetadata(
-    selectedSatellite.noradId,
-    selectedSatellite.name,
-    selectedSatellite.category
+// ─── Shell ─────────────────────────────────────────────────────────────────────
+// SatelliteDetailPanel renders nothing when no satellite is selected.
+// When a satellite IS selected it renders a stable shell + live telemetry rows.
+// The shell itself (header, card border, static metadata) only re-renders when
+// the satellite identity changes (noradId / name / category).
+
+export const SatelliteDetailPanel = memo(function SatelliteDetailPanel() {
+  const staticId = useSatelliteStore(selectStaticId);
+
+  // Nothing selected → render nothing, no subscription cost
+  if (!staticId) return null;
+
+  return <SatelliteCardInner />;
+});
+
+// ─── Inner card — only remounts on identity change ────────────────────────────
+// This is memo-wrapped separately so the live telemetry rows render inside a
+// stable parent. The card border/header never flicker.
+
+const SatelliteCardInner = memo(function SatelliteCardInner() {
+  const noradId   = useSatelliteStore(selectNoradId)!;
+  const name      = useSatelliteStore(selectName)!;
+  const category  = useSatelliteStore(selectCategory)!;
+  const inclination = useSatelliteStore(selectInclination);
+  const period    = useSatelliteStore(selectPeriod);
+  const orbitType = useSatelliteStore(selectOrbitType);
+  const launchYear = useSatelliteStore(selectLaunchYear);
+  const setSelectedSatellite = useSatelliteStore(selectSetSatellite);
+
+  const meta    = getCategoryMeta(category);
+  const satMeta = getSatelliteMetadata(noradId, name, category);
+
+  const handleClose = useCallback(
+    () => setSelectedSatellite(null),
+    [setSelectedSatellite]
   );
 
-  const speedKmH = selectedSatellite.velocity * 3600;
-  const speedMph = speedKmH * 0.621371;
-
   return (
-    <div className="animate-in slide-in-from-right-4 rounded-xl border border-border-subtle bg-surface-secondary p-4">
-      {/* Header */}
+    // Remove animate-in class — it ran on every re-render, causing visible flicker
+    <div className="rounded-xl border border-border-subtle bg-surface-secondary p-4">
+      {/* ── Header (static — never re-renders after initial mount) ── */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
           <div
@@ -47,16 +105,11 @@ export function SatelliteDetailPanel() {
             <Satellite className="h-4 w-4" style={{ color: meta.color }} />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-star-white">
-              {selectedSatellite.name}
-            </h3>
+            <h3 className="text-sm font-semibold text-star-white">{name}</h3>
             <div className="flex items-center gap-2">
               <span
                 className="rounded-full px-1.5 py-0.5 text-xs"
-                style={{
-                  backgroundColor: meta.color + "20",
-                  color: meta.color,
-                }}
+                style={{ backgroundColor: meta.color + "20", color: meta.color }}
               >
                 {meta.label}
               </span>
@@ -68,7 +121,7 @@ export function SatelliteDetailPanel() {
           </div>
         </div>
         <button
-          onClick={() => setSelectedSatellite(null)}
+          onClick={handleClose}
           className="rounded-md p-1 text-star-white/40 hover:bg-surface-glass hover:text-star-white"
           aria-label="Close detail panel"
         >
@@ -76,85 +129,136 @@ export function SatelliteDetailPanel() {
         </button>
       </div>
 
-      {/* Data Grid */}
+      {/* ── Static metadata rows ── */}
       <div className="mt-4 space-y-2.5">
-        <DetailRow
-          icon={<Tag className="h-3 w-3" />}
-          label="NORAD ID"
-          value={String(selectedSatellite.noradId)}
-        />
-        <DetailRow
-          icon={<Flag className="h-3 w-3" />}
-          label="Country"
-          value={satMeta.country}
-        />
-        <DetailRow
-          icon={<Building className="h-3 w-3" />}
-          label="Operator"
-          value={satMeta.operator}
-        />
-        <DetailRow
-          icon={<Gauge className="h-3 w-3" />}
-          label="Speed"
-          value={`${selectedSatellite.velocity.toFixed(2)} km/s`}
-          subValue={`${speedKmH.toFixed(0)} km/h · ${speedMph.toFixed(0)} mph`}
-        />
-        <DetailRow
-          icon={<Mountain className="h-3 w-3" />}
-          label="Altitude"
-          value={`${selectedSatellite.altitude.toFixed(1)} km`}
-        />
-        {selectedSatellite.inclination !== undefined && (
-          <DetailRow
+        <StaticRow icon={<Tag className="h-3 w-3" />}      label="NORAD ID"  value={String(noradId)} />
+        <StaticRow icon={<Flag className="h-3 w-3" />}     label="Country"   value={satMeta.country} />
+        <StaticRow icon={<Building className="h-3 w-3" />} label="Operator"  value={satMeta.operator} />
+
+        {/* ── Live telemetry rows — each is its own isolated component ── */}
+        <SpeedRow />
+        <AltitudeRow />
+        {inclination !== undefined && (
+          <StaticRow
             icon={<Orbit className="h-3 w-3" />}
             label="Inclination"
-            value={`${selectedSatellite.inclination.toFixed(2)}°`}
+            value={`${inclination.toFixed(2)}°`}
           />
         )}
-        <DetailRow
-          icon={<Globe2 className="h-3 w-3" />}
-          label="Latitude"
-          value={`${selectedSatellite.latitude.toFixed(4)}°`}
-        />
-        <DetailRow
-          icon={<Globe2 className="h-3 w-3" />}
-          label="Longitude"
-          value={`${selectedSatellite.longitude.toFixed(4)}°`}
-        />
-        {selectedSatellite.period !== undefined && (
-          <DetailRow
+        <LatitudeRow />
+        <LongitudeRow />
+        {period !== undefined && (
+          <StaticRow
             icon={<Clock className="h-3 w-3" />}
             label="Orbit Period"
-            value={`${selectedSatellite.period.toFixed(1)} min`}
+            value={`${period.toFixed(1)} min`}
           />
         )}
-        {selectedSatellite.orbitType && (
-          <DetailRow
+        {orbitType && (
+          <StaticRow
             icon={<Orbit className="h-3 w-3" />}
             label="Orbit Type"
-            value={selectedSatellite.orbitType}
+            value={orbitType}
           />
         )}
-        {selectedSatellite.launchYear && (
-          <DetailRow
+        {launchYear && (
+          <StaticRow
             icon={<Calendar className="h-3 w-3" />}
             label="Launch Year"
-            value={String(selectedSatellite.launchYear)}
+            value={String(launchYear)}
           />
         )}
-        {selectedSatellite.lastUpdated && (
-          <DetailRow
-            icon={<Activity className="h-3 w-3" />}
-            label="Last Updated"
-            value={new Date(selectedSatellite.lastUpdated).toLocaleTimeString()}
-          />
-        )}
+        <LastUpdatedRow />
       </div>
     </div>
   );
-}
+});
 
-// ─── Detail Row ──────────────────────────────────────────────────────────────
+// ─── Live telemetry rows ──────────────────────────────────────────────────────
+// Each row subscribes to exactly one field. When the propagation loop updates
+// the satellite object, only the row(s) whose field value actually changed will
+// re-render. The parent card shell stays completely stable.
+
+const SpeedRow = memo(function SpeedRow() {
+  const velocity = useSatelliteStore(selectVelocity);
+  if (velocity === undefined) return null;
+  const speedKmH = velocity * 3600;
+  const speedMph = speedKmH * 0.621371;
+  return (
+    <DetailRow
+      icon={<Gauge className="h-3 w-3" />}
+      label="Speed"
+      value={`${velocity.toFixed(2)} km/s`}
+      subValue={`${speedKmH.toFixed(0)} km/h · ${speedMph.toFixed(0)} mph`}
+    />
+  );
+});
+
+const AltitudeRow = memo(function AltitudeRow() {
+  const altitude = useSatelliteStore(selectAltitude);
+  if (altitude === undefined) return null;
+  return (
+    <DetailRow
+      icon={<Mountain className="h-3 w-3" />}
+      label="Altitude"
+      value={`${altitude.toFixed(1)} km`}
+    />
+  );
+});
+
+const LatitudeRow = memo(function LatitudeRow() {
+  const lat = useSatelliteStore(selectLatitude);
+  if (lat === undefined) return null;
+  return (
+    <DetailRow
+      icon={<Globe2 className="h-3 w-3" />}
+      label="Latitude"
+      value={`${lat.toFixed(4)}°`}
+    />
+  );
+});
+
+const LongitudeRow = memo(function LongitudeRow() {
+  const lon = useSatelliteStore(selectLongitude);
+  if (lon === undefined) return null;
+  return (
+    <DetailRow
+      icon={<Globe2 className="h-3 w-3" />}
+      label="Longitude"
+      value={`${lon.toFixed(4)}°`}
+    />
+  );
+});
+
+const LastUpdatedRow = memo(function LastUpdatedRow() {
+  const lastUpdated = useSatelliteStore(selectLastUpdated);
+  if (!lastUpdated) return null;
+  return (
+    <DetailRow
+      icon={<Activity className="h-3 w-3" />}
+      label="Last Updated"
+      value={new Date(lastUpdated).toLocaleTimeString()}
+    />
+  );
+});
+
+// ─── Static row — never re-renders after mount ────────────────────────────────
+
+const StaticRow = memo(function StaticRow({
+  icon,
+  label,
+  value,
+  subValue,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  subValue?: string;
+}) {
+  return <DetailRow icon={icon} label={label} value={value} subValue={subValue} />;
+});
+
+// ─── Shared row presenter ─────────────────────────────────────────────────────
 
 function DetailRow({
   icon,

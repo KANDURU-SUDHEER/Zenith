@@ -27,7 +27,7 @@ export default function SectionWrapper({
   return (
     <section
       id={id}
-      className={`relative overflow-hidden bg-[#020a04] ${tight ? "py-8 sm:py-10 md:py-14" : "py-10 sm:py-14 md:py-20"} ${className}`}
+      className={`relative w-full overflow-hidden bg-[#020a04] ${tight ? "py-8 sm:py-10 md:py-14" : "py-10 sm:py-14 md:py-20"} ${className}`}
     >
       {/* Top gradient bleed — ties sections together visually */}
       <div
@@ -77,7 +77,7 @@ export function FadeUp({
 
 export function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-[#00e676]">
+    <p className="mb-3 break-words text-xs font-bold uppercase tracking-[0.18em] text-[#00e676] sm:tracking-[0.28em]">
       {children}
     </p>
   )
@@ -86,8 +86,8 @@ export function SectionEyebrow({ children }: { children: React.ReactNode }) {
 export function SectionHeadline({ children }: { children: React.ReactNode }) {
   return (
     <h2
-      className="text-balance font-black leading-[1.05] tracking-[-0.03em] text-white"
-      style={{ fontSize: "clamp(1.65rem, 3.2vw, 2.75rem)" }}
+      className="w-full max-w-full break-words text-balance font-black leading-[1.05] tracking-[-0.03em] text-white"
+      style={{ fontSize: "clamp(1.45rem, 5vw, 2.75rem)", overflowWrap: "break-word", wordBreak: "break-word" }}
     >
       {children}
     </h2>
@@ -96,7 +96,10 @@ export function SectionHeadline({ children }: { children: React.ReactNode }) {
 
 export function SectionBody({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mt-4 max-w-[52ch] text-sm leading-[1.8] text-[#80a888] md:text-[0.95rem]">
+    <p
+      className="mt-4 w-full max-w-full text-sm leading-[1.8] text-[#80a888] md:max-w-[52ch] md:text-[0.95rem]"
+      style={{ overflowWrap: "break-word", wordBreak: "break-word" }}
+    >
       {children}
     </p>
   )
@@ -104,9 +107,9 @@ export function SectionBody({ children }: { children: React.ReactNode }) {
 
 export function FeaturePill({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5">
-      <span className="text-[#00e676]">{icon}</span>
-      <span className="text-xs font-medium text-[#a0b8a8]">{label}</span>
+    <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5">
+      <span className="shrink-0 text-[#00e676]">{icon}</span>
+      <span className="min-w-0 truncate text-xs font-medium text-[#a0b8a8]">{label}</span>
     </div>
   )
 }
@@ -123,12 +126,15 @@ export function DataCard({
   accent?: string
 }) {
   return (
-    <div className="glass-panel rounded-2xl p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: accent }}>
+    <div className="glass-panel min-w-0 overflow-hidden rounded-2xl p-3 sm:p-4">
+      <div
+        className="break-words text-[10px] font-semibold uppercase leading-tight tracking-wider sm:text-[11px]"
+        style={{ color: accent }}
+      >
         {label}
       </div>
-      <div className="mt-1 text-xl font-black text-white tabular-nums">{value}</div>
-      {sub && <div className="mt-0.5 text-[11px] text-[#6a8870]">{sub}</div>}
+      <div className="mt-1 text-lg font-black text-white tabular-nums sm:text-xl">{value}</div>
+      {sub && <div className="mt-0.5 text-[10px] text-[#6a8870] sm:text-[11px]">{sub}</div>}
     </div>
   )
 }

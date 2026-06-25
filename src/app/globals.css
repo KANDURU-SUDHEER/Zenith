@@ -403,6 +403,17 @@ html, body {
   width: 100%;
 }
 
+/* Global overflow safety — no element should bleed past the viewport */
+* {
+  min-width: 0;
+}
+
+/* Ensure all text content can wrap on very narrow viewports */
+p, h1, h2, h3, h4, h5, h6, span, div, li, a {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
 /* Ensure all interactive elements meet 44px touch target minimum */
 button, a, [role="button"], [role="tab"], [role="checkbox"] {
   touch-action: manipulation;

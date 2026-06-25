@@ -26,12 +26,21 @@ function msUntilMidnightUTC(): number {
 }
 
 async function fetchApod(): Promise<ApodData> {
-  // Add a cache-busting timestamp param so the browser never serves a cached
-  // response from a previous day. The server handles its own caching.
-  const res = await fetch(`/api/nasa/apod?t=${todayUTC()}`);
-  if (!res.ok) throw new Error(`APOD fetch failed: ${res.status}`);
+  // Cache-bust parameter prevents the browser from returning a stale day's
+  // response, but the server route has its own edge/CDN cache keyed by date.
+  const res = await fetch(`/api/nasa/apod?t=${todayUTC()}`, {
+    // Tell the browser to revalidate (check server) rather than serving
+    // a disk-cached response directly. The server handles the real caching.
+    cache: "no-cache",
+  });
+
+  if (!res.ok) {
+    // 503 = NASA timed out server-side — propagate as a retryable error
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? `APOD fetch failed: ${res.status}`);
+  }
+
   const data = await res.json() as ApodData;
-  // Validate the response has the minimum required fields
   if (!data.title || !data.media_type) throw new Error("Invalid APOD response");
   return data;
 }
@@ -40,7 +49,7 @@ export function useApod() {
   const [currentDate, setCurrentDate] = useState(todayUTC);
   const queryClient = useQueryClient();
 
-  // Schedule an exact-midnight refresh so tabs left open overnight auto-update
+  // Auto-refresh at exact UTC midnight so tabs open overnight get the new image
   useEffect(() => {
     let t: ReturnType<typeof setTimeout>;
     function schedule() {
@@ -56,21 +65,28 @@ export function useApod() {
   }, [queryClient]);
 
   return useQuery<ApodData>({
-    queryKey:  ["apod", currentDate],
-    queryFn:   fetchApod,
-    staleTime: msUntilMidnightUTC(),   // stays fresh until midnight UTC
-    gcTime:    2 * 60 * 60 * 1000,    // keep in cache 2 h past midnight
-    retry:     2,                      // retry twice on network failure
-    refetchOnMount:       true,
-    refetchOnWindowFocus: true,
-    refetchInterval:      false,
-    // No placeholderData — show the skeleton while loading,
-    // not a stale mock that confuses the media-type rendering
+    queryKey: ["apod", currentDate],
+    queryFn:  fetchApod,
+
+    // Stays fresh until midnight UTC — no unnecessary background refetches
+    staleTime: msUntilMidnightUTC(),
+    gcTime:    2 * 60 * 60 * 1000,   // keep 2 h past midnight
+
+    // Retry up to 3 times with exponential backoff (1s, 2s, 4s)
+    // This handles transient NASA API slowness without hammering the server
+    retry:      3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+
+    // Do NOT refetch on window focus — the data is valid until midnight,
+    // refetching on focus wastes NASA quota and adds perceived latency
+    refetchOnWindowFocus: false,
+    refetchOnMount:       true,   // fetch if cache is empty when view mounts
+    refetchInterval:      false,  // no polling — data doesn't change intraday
   });
 }
 
 export function prefetchApod() {
   if (typeof window !== "undefined") {
-    fetch(`/api/nasa/apod?t=${todayUTC()}`).catch(() => {});
+    fetch(`/api/nasa/apod?t=${todayUTC()}`, { cache: "no-cache" }).catch(() => {});
   }
 }

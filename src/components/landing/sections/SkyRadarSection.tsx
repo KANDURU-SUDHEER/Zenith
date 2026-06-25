@@ -223,15 +223,15 @@ export default function SkyRadarSection() {
               className="absolute inset-[-32px] rounded-full blur-3xl"
               style={{ background: "radial-gradient(circle, rgba(0,230,118,0.10), transparent 70%)" }}
             />
-            <div className="relative overflow-hidden rounded-full border border-[#00e676]/20 bg-[#011408] p-2 shadow-[0_0_80px_rgba(0,230,118,0.12)]" style={{ maxWidth: "100%" }}>
+            <div className="relative w-full max-w-full overflow-hidden rounded-full border border-[#00e676]/20 bg-[#011408] p-2 shadow-[0_0_80px_rgba(0,230,118,0.12)]">
               <SkyRadarCanvas />
             </div>
           </div>
 
-          <FadeUp delay={0.2} className="mt-6 flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2">
-            <MapPin className="h-3.5 w-3.5 text-[#00e676]" />
-            <span className="text-xs font-medium text-[#a0b8a8]">Cape Canaveral, FL, USA</span>
-            <span className="ml-1 h-1.5 w-1.5 rounded-full bg-[#6effa8] shadow-[0_0_6px_2px_rgba(110,255,168,0.7)]" />
+        <FadeUp delay={0.2} className="mt-6 flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2">
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-[#00e676]" />
+            <span className="min-w-0 truncate text-xs font-medium text-[#a0b8a8]">Cape Canaveral, FL, USA</span>
+            <span className="ml-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[#6effa8] shadow-[0_0_6px_2px_rgba(110,255,168,0.7)]" />
           </FadeUp>
         </FadeUp>
 
@@ -251,13 +251,13 @@ export default function SkyRadarSection() {
           <div className="mt-8 grid gap-4">
             {RADAR_FEATURES.map((f, i) => (
               <FadeUp key={f.title} delay={0.08 + i * 0.08}>
-                <div className="flex gap-3 rounded-2xl border border-white/6 bg-white/[0.03] p-4">
+          <div className="flex gap-3 rounded-2xl border border-white/6 bg-white/[0.03] p-4">
                   <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#00e676]/10 text-[#00e676]">
                     {f.icon}
                   </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white">{f.title}</div>
-                    <div className="mt-1 text-xs leading-relaxed text-[#6a8870]">{f.desc}</div>
+                  <div className="min-w-0">
+                    <div className="break-words text-sm font-semibold text-white">{f.title}</div>
+                    <div className="mt-1 break-words text-xs leading-relaxed text-[#6a8870]">{f.desc}</div>
                   </div>
                 </div>
               </FadeUp>

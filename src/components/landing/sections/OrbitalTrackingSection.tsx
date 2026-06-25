@@ -34,13 +34,13 @@ function OrbitalGlobe() {
     observer.observe(canvas)
     isVisible.current = false
 
-    const SIZE = 480
+    // Responsive: use container width capped at 480px
+    const SIZE = Math.min(480, typeof window !== "undefined" ? window.innerWidth - 32 : 480)
     canvas.width = SIZE * 2
     canvas.height = SIZE * 2
     canvas.style.width  = `${SIZE}px`
     canvas.style.height = `${SIZE}px`
     ctx.scale(2, 2)
-
     const cx = SIZE / 2, cy = SIZE / 2
     const R  = SIZE * 0.35
 
@@ -181,13 +181,13 @@ const TICKERS = [
 
 function TelemetryTicker() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/8 bg-[#040f06]">
+    <div className="w-full overflow-hidden rounded-2xl border border-white/8 bg-[#040f06]">
       <div className="flex items-center justify-between border-b border-white/6 px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="zenith-dot-pulse h-2 w-2 rounded-full bg-[#6effa8]" />
-          <span className="text-xs font-semibold text-[#a0b8a8]">Live Orbital Feed</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="zenith-dot-pulse h-2 w-2 shrink-0 rounded-full bg-[#6effa8]" />
+          <span className="truncate text-xs font-semibold text-[#a0b8a8]">Live Orbital Feed</span>
         </div>
-        <span className="text-[10px] text-[#4a6450]">Updated: now</span>
+        <span className="ml-2 shrink-0 text-[10px] text-[#4a6450]">Updated: now</span>
       </div>
       <div className="divide-y divide-white/[0.04]">
         {TICKERS.map((t, i) => (
@@ -197,15 +197,15 @@ function TelemetryTicker() {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 + i * 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="grid grid-cols-[1fr_auto] items-center gap-x-4 px-4 py-2.5 text-[11px] sm:grid-cols-[1fr_auto_auto_auto]"
+            className="grid min-w-0 grid-cols-[1fr_auto] items-center gap-x-3 px-4 py-2.5 text-[11px] sm:grid-cols-[1fr_auto_auto_auto]"
           >
-            <div className="flex items-center gap-2 truncate">
+            <div className="flex min-w-0 items-center gap-2">
               <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: t.color }} />
-              <span className="truncate font-mono font-medium text-white">{t.name}</span>
+              <span className="min-w-0 truncate font-mono font-medium text-white">{t.name}</span>
             </div>
-            <span className="text-[#6a8870]">{t.alt}</span>
-            <span className="hidden text-[#6a8870] sm:block">{t.spd}</span>
-            <span className="hidden text-right text-[#6a8870] sm:block">{t.lat} {t.lon}</span>
+            <span className="shrink-0 text-[#6a8870]">{t.alt}</span>
+            <span className="hidden shrink-0 text-[#6a8870] sm:block">{t.spd}</span>
+            <span className="hidden shrink-0 text-right text-[#6a8870] sm:block">{t.lat} {t.lon}</span>
           </motion.div>
         ))}
       </div>
@@ -241,10 +241,10 @@ export default function OrbitalTrackingSection() {
             ].map((f) => (
               <div
                 key={f.label}
-                className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5"
+                className="flex min-w-0 items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5"
               >
-                <span className="text-[#00e676]">{f.icon}</span>
-                <span className="text-xs font-medium text-[#a0b8a8]">{f.label}</span>
+                <span className="shrink-0 text-[#00e676]">{f.icon}</span>
+                <span className="min-w-0 text-xs font-medium text-[#a0b8a8]">{f.label}</span>
               </div>
             ))}
           </FadeUp>
@@ -264,7 +264,7 @@ export default function OrbitalTrackingSection() {
               style={{ background: "radial-gradient(circle, rgba(0,230,118,0.12), transparent 70%)" }}
               aria-hidden="true"
             />
-            <div className="overflow-hidden" style={{ maxWidth: "100%" }}>
+            <div className="max-w-full overflow-hidden">
               <OrbitalGlobe />
             </div>
           </FadeUp>

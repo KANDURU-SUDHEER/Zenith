@@ -78,8 +78,7 @@ function MagneticLaunch() {
     <button
       type="button"
       onClick={() => window.location.href = "/zenith"}
-      className="btn-zenith-primary group relative inline-flex h-16 items-center justify-center gap-3 overflow-hidden rounded-full px-10 text-base font-bold text-white"
-      style={{ minWidth: "220px" }}
+      className="btn-zenith-primary group relative inline-flex h-14 w-full max-w-xs items-center justify-center gap-3 overflow-hidden rounded-full px-8 text-base font-bold text-white sm:h-16 sm:w-auto sm:max-w-none sm:px-10"
     >
       <span className="relative z-10 flex items-center gap-3">
         Launch Zenith
@@ -100,7 +99,7 @@ export default function FinalCTASection() {
         className="pointer-events-none absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[120px]"
         style={{ background: "radial-gradient(circle, rgba(0,230,118,0.07), rgba(0,200,83,0.05) 50%, transparent 70%)" }} />
 
-      <div className="relative mx-auto max-w-[780px] px-6 text-center">
+      <div className="relative mx-auto max-w-[780px] px-4 text-center sm:px-6">
         <FadeUp>
           <div className="mb-4 inline-flex items-center justify-center">
             <div className="zenith-spin-30s flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#00e676]/15 to-[#00c853]/15 border border-[#00e676]/20">
@@ -110,15 +109,17 @@ export default function FinalCTASection() {
         </FadeUp>
 
         <FadeUp delay={0.1}>
-          <h2 className="font-black leading-[1.05] tracking-[-0.03em] text-white"
-            style={{ fontSize: "clamp(1.9rem, 4vw, 3.75rem)" }}>
+          <h2
+            className="break-words font-black leading-[1.05] tracking-[-0.03em] text-white"
+            style={{ fontSize: "clamp(1.65rem, 6vw, 3.75rem)", overflowWrap: "break-word" }}
+          >
             The Universe Is Moving.{" "}
             <span className="text-gradient-zenith">So Is Zenith.</span>
           </h2>
         </FadeUp>
 
         <FadeUp delay={0.2}>
-          <p className="mx-auto mt-4 max-w-[48ch] text-sm leading-[1.8] text-[#80a888] md:text-base">
+          <p className="mx-auto mt-4 max-w-full break-words text-sm leading-[1.8] text-[#80a888] sm:max-w-[48ch] md:text-base">
             Track satellites. Explore planets. Monitor the sky. Discover the cosmos —
             unified in one cinematic platform.
           </p>

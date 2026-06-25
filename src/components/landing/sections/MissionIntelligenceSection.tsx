@@ -99,9 +99,9 @@ function ISSLiveCard() {
           { k: "Altitude", v: "408 km" }, { k: "Speed", v: "7.66 km/s" },
           { k: "Crew",     v: "7 aboard" }, { k: "Period", v: "92.9 min" },
         ].map((row) => (
-          <div key={row.k} className="flex items-center justify-between">
-            <span className="text-[10px] text-[#4a6450]">{row.k}</span>
-            <span className="text-[11px] font-semibold text-[#c8a8ff]">{row.v}</span>
+          <div key={row.k} className="flex min-w-0 items-center justify-between gap-2">
+            <span className="shrink-0 text-[10px] text-[#4a6450]">{row.k}</span>
+            <span className="min-w-0 truncate text-right text-[11px] font-semibold text-[#c8a8ff]">{row.v}</span>
           </div>
         ))}
       </div>
@@ -150,19 +150,20 @@ export default function MissionIntelligenceSection() {
     <SectionWrapper id="platform" tight>
       <FadeUp className="mx-auto max-w-4xl text-center">
         <SectionEyebrow>Platform Overview</SectionEyebrow>
-        <p className="mt-4 font-black leading-[1.1] tracking-[-0.025em] text-white"
-          style={{ fontSize: "clamp(1.6rem, 3.5vw, 2.9rem)" }}>
+        <p className="mt-4 break-words font-black leading-[1.1] tracking-[-0.025em] text-white"
+          style={{ fontSize: "clamp(1.35rem, 5vw, 2.9rem)", overflowWrap: "break-word" }}>
           Zenith is not a collection of tools.
         </p>
-        <p className="mt-2 font-black leading-[1.1] tracking-[-0.025em]"
+        <p className="mt-2 break-words font-black leading-[1.1] tracking-[-0.025em]"
           style={{
-            fontSize: "clamp(1.6rem, 3.5vw, 2.9rem)",
+            fontSize: "clamp(1.35rem, 5vw, 2.9rem)",
             background: "linear-gradient(105deg, #00e676 0%, #00c853 100%)",
             WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+            overflowWrap: "break-word",
           }}>
           It is one unified intelligence platform.
         </p>
-        <p className="mx-auto mt-5 max-w-[58ch] text-sm leading-[1.85] text-[#80a888] md:text-[0.95rem]">
+        <p className="mx-auto mt-5 max-w-full break-words text-sm leading-[1.85] text-[#80a888] sm:max-w-[58ch] md:text-[0.95rem]">
           Every module feeds into every other — satellite tracking, sky radar, solar system, APOD, orbital predictions — all connected, all real-time, all in one place.
         </p>
       </FadeUp>
@@ -183,17 +184,17 @@ export default function MissionIntelligenceSection() {
               viewport={{ once: true, margin: "-40px" }}
               transition={{ delay: 0.04+i*0.05, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
               whileHover={{ y: -3, transition: { duration: 0.18 } }}
-              className="group relative overflow-hidden rounded-2xl border border-white/6 bg-white/[0.03] p-4 transition-colors hover:border-white/12 hover:bg-white/[0.05]">
+              className="group relative min-w-0 overflow-hidden rounded-2xl border border-white/6 bg-white/[0.03] p-4 transition-colors hover:border-white/12 hover:bg-white/[0.05]">
               <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                 style={{ background: `radial-gradient(circle at 50% 0%, ${f.color}14, transparent 60%)` }} aria-hidden="true" />
-              <div className="relative z-10 mb-3 flex h-9 w-9 items-center justify-center rounded-xl"
+              <div className="relative z-10 mb-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
                 style={{ background: f.color+"18", color: f.color }}>{f.icon}</div>
-              <div className="relative z-10">
-                <div className="text-sm font-semibold text-white">{f.label}</div>
-                <div className="mt-0.5 text-[11px]" style={{ color: f.color+"bb" }}>{f.desc}</div>
+              <div className="relative z-10 min-w-0">
+                <div className="break-words text-sm font-semibold text-white">{f.label}</div>
+                <div className="mt-0.5 break-words text-[11px]" style={{ color: f.color+"bb" }}>{f.desc}</div>
                 <div className="mt-2 space-y-0.5 border-t border-white/[0.06] pt-2">
                   {f.extra.map((line) => (
-                    <div key={line} className="text-[10px] text-[#4a6450]">{line}</div>
+                    <div key={line} className="break-words text-[10px] text-[#4a6450]">{line}</div>
                   ))}
                 </div>
               </div>

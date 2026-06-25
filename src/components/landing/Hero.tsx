@@ -10,7 +10,7 @@ function MagneticCTA() {
   return (
     <button
       type="button"
-      className="btn-zenith-primary group relative inline-flex h-14 items-center justify-center gap-2 overflow-hidden rounded-full px-7 text-sm font-semibold text-white"
+      className="btn-zenith-primary group relative inline-flex h-12 w-full max-w-xs items-center justify-center gap-2 overflow-hidden rounded-full px-6 text-sm font-semibold text-white sm:h-14 sm:w-auto sm:max-w-none sm:px-7"
       onClick={() => window.location.href = "/zenith"}
     >
       <span className="relative z-10 flex items-center gap-2">
@@ -30,15 +30,15 @@ export default function Hero() {
   return (
     <motion.div
       style={{ y: contentY, opacity: contentOpacity }}
-      className="relative z-30 flex h-full w-full items-center justify-center px-4 sm:px-6 lg:w-[50%] lg:justify-start lg:px-10 xl:pl-16"
+      className="relative z-30 flex h-full w-full min-w-0 items-center justify-center overflow-hidden px-4 sm:px-6 lg:w-[50%] lg:justify-start lg:overflow-visible lg:px-10 xl:pl-16"
     >
       <div className="w-full max-w-[580px] pb-8 pt-[80px] sm:pt-[88px] text-center lg:text-left">
         <motion.h1
           initial={{ opacity: 0, y: 28 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.95, ease, delay: 0.05 }}
-          className="font-sans font-black leading-[0.95] tracking-[-0.03em] text-white text-balance"
-          style={{ fontSize: "clamp(2rem, 6vw, 4.2rem)" }}
+          className="w-full max-w-full break-words font-sans font-black leading-[0.95] tracking-[-0.03em] text-white text-balance"
+          style={{ fontSize: "clamp(1.85rem, 9vw, 4.2rem)", overflowWrap: "break-word" }}
         >
           See <span className="text-gradient-zenith">Everything.</span>
           <br />
@@ -49,7 +49,8 @@ export default function Hero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.85, ease, delay: 0.2 }}
-          className="mx-auto mt-5 max-w-[460px] text-sm leading-[1.75] text-[#a0b8a8] sm:text-base md:text-lg lg:mx-0"
+          className="mx-auto mt-5 w-full max-w-full break-words text-sm leading-[1.75] text-[#a0b8a8] sm:max-w-[460px] sm:text-base md:text-lg lg:mx-0"
+          style={{ overflowWrap: "break-word", wordBreak: "break-word" }}
         >
           A real-time orbital intelligence platform. Track every satellite, mission and signal across the planet from one cinematic command center.
         </motion.p>

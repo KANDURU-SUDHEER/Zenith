@@ -239,19 +239,19 @@ function ApodCard({ apod }: { apod: typeof APODS[0] }) {
           {apod.category}
         </div>
       </div>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-black text-white">{apod.title}</h3>
+          <div className="min-w-0">
+            <h3 className="break-words text-lg font-black text-white">{apod.title}</h3>
             <div className="mt-1 flex items-center gap-2 text-[11px] text-[#6a8870]">
-              <Calendar className="h-3 w-3" /><span>{apod.date}</span>
+              <Calendar className="h-3 w-3 shrink-0" /><span>{apod.date}</span>
             </div>
           </div>
           <span className="shrink-0 text-xs" style={{ color: apod.accent }}>{apod.stars}</span>
         </div>
-        <p className="mt-3 text-[13px] leading-relaxed text-[#80a888]">{apod.desc}</p>
+        <p className="mt-3 break-words text-[13px] leading-relaxed text-[#80a888]">{apod.desc}</p>
         <div className="mt-4 flex items-center gap-2 text-xs font-medium" style={{ color: apod.accent }}>
-          <BookOpen className="h-3.5 w-3.5" />Read scientific explanation
+          <BookOpen className="h-3.5 w-3.5 shrink-0" />Read scientific explanation
         </div>
       </div>
     </div>
@@ -298,11 +298,11 @@ export default function NasaApodSection() {
               { icon: <Calendar className="h-4 w-4" />,  title: "Historical Archive Access", desc: "Browse every APOD since June 16, 1995 — over 10,000 images." },
             ].map((f, i) => (
               <FadeUp key={f.title} delay={0.08+i*0.07}>
-                <div className="flex gap-3 rounded-2xl border border-white/6 bg-white/[0.03] p-4">
+          <div className="flex gap-3 rounded-2xl border border-white/6 bg-white/[0.03] p-4">
                   <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#ffd2a0]/10 text-[#ffd2a0]">{f.icon}</div>
-                  <div>
-                    <div className="text-sm font-semibold text-white">{f.title}</div>
-                    <div className="mt-0.5 text-xs leading-relaxed text-[#6a8870]">{f.desc}</div>
+                  <div className="min-w-0">
+                    <div className="break-words text-sm font-semibold text-white">{f.title}</div>
+                    <div className="mt-0.5 break-words text-xs leading-relaxed text-[#6a8870]">{f.desc}</div>
                   </div>
                 </div>
               </FadeUp>

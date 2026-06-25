@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import dynamic from "next/dynamic";
 import { DashboardHeader } from "./dashboard-header";
 import { Sidebar } from "./sidebar";
 import { DetailsPanel } from "./details-panel";
 import { TimelineBar } from "./timeline-bar";
 import { MobileNav } from "./mobile-nav";
-import { MobileDetailsSheet } from "./mobile-details-sheet";
+import { MobileInfoSidebar } from "./mobile-info-sidebar";
+import { MobileToolsSidebar } from "./mobile-tools-sidebar";
+import { MobileOverlayControls } from "./mobile-overlay-controls";
+import { MobileMissionCard } from "./mobile-mission-card";
 import { CategoryMenu } from "./category-menu";
 import { GlobeView } from "@/components/globe/globe-view";
 import { LocationHydration } from "@/providers/location-hydration";
@@ -17,7 +20,8 @@ import { LoadingSkeleton } from "@/components/status/LoadingSkeleton";
 import { useIsMobile, useIsTablet } from "@/hooks/use-media-query";
 import { prefetchApod } from "@/hooks/use-apod";
 
-// Lazy load heavy modules — only loaded when user activates them
+// ─── Lazy modules ─────────────────────────────────────────────────────────────
+
 const ZenithRadar = dynamic(
   () => import("@/components/radar/zenith-radar").then((m) => ({ default: m.ZenithRadar })),
   { ssr: false, loading: () => <LoadingSkeleton variant="radar" className="h-full" /> }
@@ -38,105 +42,168 @@ const SkyGuidePanel = dynamic(
   { ssr: false }
 );
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export type DashboardView = "globe" | "radar" | "solar-system" | "apod";
+
+// ─── Edge-swipe threshold (px from screen edge to trigger sidebar) ─────────────
+const EDGE_THRESHOLD = 30;
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export function DashboardShell() {
   const [activeView, setActiveView] = useState<DashboardView>("globe");
   const [skyGuideOpen, setSkyGuideOpen] = useState(false);
-  const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
+  const [mobileInfoOpen, setMobileInfoOpen] = useState(false);
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [mobileTimelineOpen, setMobileTimelineOpen] = useState(false);
+
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
 
-  // Panel visibility driven by breakpoint + user toggle overrides.
+  // ── Desktop panel open/close state ──────────────────────────────────────
   const defaultOpen = !isMobile && !isTablet;
   const breakpointKey = isMobile ? "mobile" : isTablet ? "tablet" : "desktop";
 
-  console.log("[SHELL] render", { isMobile, isTablet, activeView, breakpointKey });
   const [sidebarOverrides, setSidebarOverrides] = useState<Record<string, boolean>>({});
   const [detailsOverrides, setDetailsOverrides] = useState<Record<string, boolean>>({});
 
-  const sidebarOpen = sidebarOverrides[breakpointKey] !== undefined
-    ? sidebarOverrides[breakpointKey]!
-    : defaultOpen;
-  const detailsOpen = detailsOverrides[breakpointKey] !== undefined
-    ? detailsOverrides[breakpointKey]!
-    : defaultOpen;
+  const sidebarOpen =
+    sidebarOverrides[breakpointKey] !== undefined
+      ? sidebarOverrides[breakpointKey]!
+      : defaultOpen;
+  const detailsOpen =
+    detailsOverrides[breakpointKey] !== undefined
+      ? detailsOverrides[breakpointKey]!
+      : defaultOpen;
 
-  const setSidebarOpen = (v: boolean) =>
-    setSidebarOverrides((prev) => ({ ...prev, [breakpointKey]: v }));
-  const setDetailsOpen = (v: boolean) =>
-    setDetailsOverrides((prev) => ({ ...prev, [breakpointKey]: v }));
+  const setSidebarOpen = useCallback(
+    (v: boolean) =>
+      setSidebarOverrides((prev) => ({ ...prev, [breakpointKey]: v })),
+    [breakpointKey]
+  );
+  const setDetailsOpen = useCallback(
+    (v: boolean) =>
+      setDetailsOverrides((prev) => ({ ...prev, [breakpointKey]: v })),
+    [breakpointKey]
+  );
 
-  // Prefetch APOD data after idle
+  // ── Edge-swipe gesture detection ─────────────────────────────────────────
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      const start = touchStartRef.current;
+      touchStartRef.current = null;
+      if (!start) return;
+
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+
+      // Reject diagonal / mostly-vertical gestures
+      if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx) * 0.8) return;
+
+      const screenW = window.innerWidth;
+
+      if (dx > 0 && start.x < EDGE_THRESHOLD && !mobileInfoOpen) {
+        setMobileInfoOpen(true);
+        return;
+      }
+      if (dx < 0 && start.x > screenW - EDGE_THRESHOLD && !mobileToolsOpen) {
+        setMobileToolsOpen(true);
+        return;
+      }
+      if (dx < -40 && mobileInfoOpen) {
+        setMobileInfoOpen(false);
+        return;
+      }
+      if (dx > 40 && mobileToolsOpen) {
+        setMobileToolsOpen(false);
+        return;
+      }
+    },
+    [mobileInfoOpen, mobileToolsOpen]
+  );
+
+  // ── Prefetch APOD ────────────────────────────────────────────────────────
   useEffect(() => {
     const id = requestIdleCallback(() => prefetchApod(), { timeout: 5000 });
     return () => cancelIdleCallback(id);
   }, []);
 
-  // ─── SINGLE unified tree — no conditional return based on isMobile ─────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // SINGLE unified component tree.
   //
-  // CRITICAL: Both mobile and desktop must render through the SAME component
-  // tree so that GlobeView (and its CesiumGlobe child) is NEVER unmounted due
-  // to a layout-mode switch. Previously, two separate `return` paths existed:
-  //   if (isMobile) return <OrbitalEngineProvider>…mobile…</OrbitalEngineProvider>
-  //   return <OrbitalEngineProvider>…desktop…</OrbitalEngineProvider>
-  //
-  // On production, `useIsMobile()` uses getServerSnapshot()=false so the first
-  // render produces isMobile=true (because !false). After hydration the real
-  // matchMedia value resolves — on a desktop viewport this flips isMobile to
-  // false, React switches return paths, unmounts the entire mobile tree
-  // (including CesiumGlobe mid-import), then mounts the desktop tree fresh.
-  // This caused the repeated "[INIT] before import → Cleanup" loop.
-  //
-  // Fix: single return path. Layout differences are expressed via className and
-  // conditional rendering of specific panels, not top-level tree replacement.
+  // CRITICAL: Both mobile and desktop share the same tree so GlobeView
+  // (and its WebGL CesiumGlobe child) is NEVER unmounted when the layout
+  // mode switches.  Layout differences are expressed via conditional className
+  // and conditional rendering of specific panels, NOT by swapping the entire
+  // return path.
+  // ─────────────────────────────────────────────────────────────────────────
 
-  console.log("[SHELL] unified layout — isMobile:", isMobile);
   return (
     <OrbitalEngineProvider>
-      <div className={`flex overflow-hidden bg-space-950 ${isMobile ? "h-[100dvh] flex-col" : "h-screen flex-col"}`}>
+      <div
+        className={`flex overflow-hidden bg-space-950 ${
+          isMobile ? "h-[100dvh] flex-col" : "h-screen flex-col"
+        }`}
+      >
         <LocationHydration />
 
-        {/* Top Navigation */}
-        <DashboardHeader
-          activeView={activeView}
-          onViewChange={setActiveView}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          onToggleDetails={isMobile
-            ? () => setMobileDetailsOpen(!mobileDetailsOpen)
-            : () => setDetailsOpen(!detailsOpen)
-          }
-        />
+        {/* ── Desktop-only header ───────────────────────────────────────── */}
+        {!isMobile && (
+          <DashboardHeader
+            activeView={activeView}
+            onViewChange={setActiveView}
+            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            onToggleDetails={() => setDetailsOpen(!detailsOpen)}
+          />
+        )}
 
         <div className="relative flex min-h-0 flex-1">
-          {/* Left Sidebar — desktop/tablet only */}
+          {/* ── Desktop left sidebar ──────────────────────────────────────── */}
           {!isMobile && sidebarOpen && (
             <div className="relative h-full shrink-0">
               <Sidebar onOpenSkyGuide={() => setSkyGuideOpen(true)} />
             </div>
           )}
 
-          {/* Center Visualization — always rendered, layout-only changes */}
-          <main className="relative min-w-0 flex-1">
-
-            {/* Globe — always mounted regardless of activeView.
-                Use opacity:0 to hide it so the WebGL context stays alive.
-                visibility:hidden would zero the drawingBuffer and crash Cesium. */}
+          {/* ── Center: visualization area ────────────────────────────────── */}
+          <main
+            className="relative min-w-0 flex-1"
+            onTouchStart={isMobile ? handleTouchStart : undefined}
+            onTouchEnd={isMobile ? handleTouchEnd : undefined}
+          >
+            {/* Globe — always mounted, never unmounted.
+                Switching views hides it via opacity/pointer-events so the
+                WebGL context stays alive and Cesium doesn't crash.            */}
             <div
               className={
                 activeView === "globe"
-                  ? "h-full w-full relative"
-                  : "absolute inset-0 opacity-0 pointer-events-none"
+                  ? "relative h-full w-full"
+                  : "pointer-events-none absolute inset-0 opacity-0"
               }
             >
               <ErrorBoundary module="Globe">
                 <GlobeView />
               </ErrorBoundary>
 
-              {/* Category Menu */}
+              {/* Category legend — only on globe view */}
               {activeView === "globe" && (
-                <div className={`absolute left-1/2 -translate-x-1/2 z-20 pointer-events-auto ${isMobile ? "bottom-[4.5rem]" : "bottom-4"}`}>
+                <div
+                  className={`pointer-events-auto absolute left-1/2 z-20 -translate-x-1/2 ${
+                    isMobile ? "bottom-[4.5rem]" : "bottom-4"
+                  }`}
+                >
                   <CategoryMenu />
                 </div>
               )}
@@ -175,7 +242,7 @@ export function DashboardShell() {
               </div>
             )}
 
-            {/* AI Sky Guide Overlay */}
+            {/* AI Sky Guide overlay */}
             {skyGuideOpen && (
               <ErrorBoundary module="AI Sky Guide">
                 <Suspense fallback={null}>
@@ -187,29 +254,36 @@ export function DashboardShell() {
               </ErrorBoundary>
             )}
 
-            {/* Mobile-only: Details bottom sheet */}
+            {/* ── Mobile-only in-canvas overlays ───────────────────────── */}
             {isMobile && (
-              <MobileDetailsSheet
-                isOpen={mobileDetailsOpen}
-                onToggle={() => setMobileDetailsOpen(!mobileDetailsOpen)}
-              />
-            )}
+              <>
+                {/* Floating controls: info + search + layers */}
+                <MobileOverlayControls
+                  onOpenInfo={() => setMobileInfoOpen(true)}
+                  onOpenTools={() => setMobileToolsOpen(true)}
+                />
 
-            {/* Mobile-only: Timeline drawer */}
-            {isMobile && mobileTimelineOpen && (
-              <div className="absolute inset-x-0 bottom-16 z-30 rounded-t-2xl border-t border-border-subtle bg-surface-primary/95 backdrop-blur-xl shadow-2xl">
-                <button
-                  onClick={() => setMobileTimelineOpen(false)}
-                  className="flex w-full items-center justify-center py-2"
-                >
-                  <div className="h-1 w-10 rounded-full bg-star-white/20" />
-                </button>
-                <TimelineBar />
-              </div>
+                {/* Compact satellite mission card */}
+                <MobileMissionCard />
+
+                {/* Timeline drawer — slides up above nav bar */}
+                {mobileTimelineOpen && (
+                  <div className="absolute inset-x-0 bottom-14 z-30 rounded-t-2xl border-t border-[rgba(255,255,255,0.06)] bg-[#0D0E10]/95 shadow-2xl backdrop-blur-xl">
+                    <button
+                      onClick={() => setMobileTimelineOpen(false)}
+                      className="flex w-full items-center justify-center py-2"
+                      aria-label="Close timeline"
+                    >
+                      <div className="h-1 w-10 rounded-full bg-[rgba(255,255,255,0.15)]" />
+                    </button>
+                    <TimelineBar />
+                  </div>
+                )}
+              </>
             )}
           </main>
 
-          {/* Right Details Panel — desktop/tablet only */}
+          {/* ── Desktop right details panel ───────────────────────────────── */}
           {!isMobile && detailsOpen && (
             <div className="relative h-full shrink-0">
               <ErrorBoundary module="Details Panel">
@@ -219,21 +293,37 @@ export function DashboardShell() {
           )}
         </div>
 
-        {/* Bottom Timeline — desktop only (mobile uses drawer) */}
+        {/* ── Desktop timeline bar ──────────────────────────────────────────── */}
         {!isMobile && (
           <ErrorBoundary module="Timeline">
             <TimelineBar />
           </ErrorBoundary>
         )}
 
-        {/* Mobile Bottom Navigation */}
+        {/* ── Mobile permanent bottom nav ──────────────────────────────────── */}
         {isMobile && (
           <MobileNav
             activeView={activeView}
             onViewChange={setActiveView}
             onOpenSkyGuide={() => setSkyGuideOpen(true)}
-            onOpenTimeline={() => setMobileTimelineOpen(!mobileTimelineOpen)}
+            onOpenTimeline={() => setMobileTimelineOpen((v) => !v)}
           />
+        )}
+
+        {/* ── Mobile sidebars (fixed overlay, outside main stacking context) ── */}
+        {isMobile && (
+          <>
+            <MobileInfoSidebar
+              isOpen={mobileInfoOpen}
+              onClose={() => setMobileInfoOpen(false)}
+            />
+            <MobileToolsSidebar
+              isOpen={mobileToolsOpen}
+              onClose={() => setMobileToolsOpen(false)}
+              onOpenSkyGuide={() => setSkyGuideOpen(true)}
+              onOpenTimeline={() => setMobileTimelineOpen((v) => !v)}
+            />
+          </>
         )}
       </div>
     </OrbitalEngineProvider>

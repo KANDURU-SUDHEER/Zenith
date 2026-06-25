@@ -33,7 +33,7 @@ function Counter({ value }: { value: number }) {
 
 export default function Metrics() {
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:gap-x-6 sm:gap-y-5 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-x-6 sm:gap-y-5 sm:grid-cols-4">
       {METRICS.map((metric, i) => {
         const Icon = ICONS[i]!
         return (
@@ -42,13 +42,13 @@ export default function Metrics() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.75 + i * 0.1 }}
-            className="flex flex-col gap-1"
+            className="flex min-w-0 flex-col gap-1"
           >
-            <Icon className="h-3.5 w-3.5 text-[#00e676]" />
-            <span className="text-xl font-extrabold tracking-tight text-white tabular-nums sm:text-2xl lg:text-3xl">
+            <Icon className="h-3.5 w-3.5 shrink-0 text-[#00e676]" />
+            <span className="break-words text-lg font-extrabold tracking-tight text-white tabular-nums sm:text-2xl lg:text-3xl">
               <Counter value={metric.value} />
             </span>
-            <span className="text-[10px] font-medium uppercase tracking-wider text-[#6a8870] sm:text-[11px]">
+            <span className="break-words text-[10px] font-medium uppercase leading-tight tracking-wider text-[#6a8870] sm:text-[11px]">
               {metric.label}
             </span>
           </motion.div>

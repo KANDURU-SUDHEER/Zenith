@@ -333,8 +333,8 @@ export default function SolarSystemSection() {
                   {f.icon}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-semibold text-white">{f.label}</div>
-                  <div className="text-[10px] text-[#6a8870]">{f.desc}</div>
+                  <div className="break-words text-xs font-semibold text-white">{f.label}</div>
+                  <div className="break-words text-[10px] text-[#6a8870]">{f.desc}</div>
                 </div>
               </motion.div>
             ))}

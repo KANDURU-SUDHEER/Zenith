@@ -27,7 +27,7 @@ export default function LandingPage() {
       <SpaceScene />
 
       {/* Hero — full viewport height */}
-      <section className="relative z-30 w-full" style={{ height: "100svh" }}>
+      <section className="relative z-30 w-full overflow-hidden" style={{ height: "100svh" }}>
         <Hero />
       </section>
 

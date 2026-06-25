@@ -89,7 +89,7 @@ function saveVideo(videoUrl: string, filename: string): void {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function APODView() {
-  const { data: apod, isLoading, isError, refetch, dataUpdatedAt } = useApod();
+  const { data: apod, isLoading, isError, isFetching, refetch, dataUpdatedAt } = useApod();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [fullscreen,  setFullscreen]  = useState(false);
   const [isSaving,    setIsSaving]    = useState(false);
@@ -182,11 +182,14 @@ export function APODView() {
         <div className="flex flex-col items-center gap-4 text-center px-6">
           <AlertCircle className="h-10 w-10 text-white/20" />
           <p className="text-sm text-white/40">Could not load today&apos;s APOD</p>
+          <p className="text-xs text-white/25">NASA&apos;s API may be slow — try again in a moment</p>
           <button
             onClick={() => refetch()}
-            className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs text-white/60 hover:bg-white/10 hover:text-white"
+            disabled={isFetching}
+            className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Try again
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Loading…" : "Try again"}
           </button>
         </div>
       </div>
@@ -243,10 +246,11 @@ export function APODView() {
           </div>
           <button
             onClick={() => refetch()}
-            className="rounded-lg p-2 text-white/30 hover:bg-white/5 hover:text-white/60"
-            title="Refresh"
+            disabled={isFetching}
+            className="rounded-lg p-2 text-white/30 hover:bg-white/5 hover:text-white/60 disabled:cursor-not-allowed disabled:opacity-50"
+            title={isFetching ? "Loading…" : "Refresh"}
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           </button>
         </div>
 

@@ -17,118 +17,153 @@ import { useSimulationClock } from "@/stores/simulation-clock";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const ISS_TLE_REFRESH_INTERVAL  = 300_000; // 5 minutes — TLE data is static, refreshes ~2x/day
-const ISS_ANIM_PROPAGATE_INTERVAL = 5000;  // 5 seconds — interpolation source propagation
+const ISS_TLE_REFRESH_INTERVAL    = 300_000; // 5 min — TLE elements refresh ~2x/day
+const ISS_ANIM_PROPAGATE_INTERVAL = 5_000;   // 5 s  — interpolation source update
 
-// ─── External Store for Animation (avoid setState in render) ─────────────────
+// ─── External store: animation position (60 fps) ─────────────────────────────
+//
+// Using useSyncExternalStore with a module-level store bypasses React state
+// entirely for the 60fps animation loop. Components that call
+// useSyncExternalStore(subscribeISSAnim, ...) get a direct subscription
+// without a setState call chain, so ONLY those components re-render —
+// no parent, no sibling, no scroll container.
+//
+// All four functions are EXPORTED so iss-detail-panel.tsx can subscribe
+// directly to specific fields without calling useISSTracker() (which returns
+// a new object every frame and defeats React.memo on the panel).
 
-type ISSAnimationState = {
-  latitude: number;
+export type ISSAnimationState = {
+  latitude:  number;
   longitude: number;
-  altitude: number;
-  velocity: number;
-  speedKmS: number;
-  speedKmH: number;
-  speedMph: number;
+  altitude:  number;
+  velocity:  number;
+  speedKmS:  number;
+  speedKmH:  number;
+  speedMph:  number;
   timestamp: number;
 } | null;
 
 let issAnimState: ISSAnimationState = null;
-const issListeners = new Set<() => void>();
+const issAnimListeners = new Set<() => void>();
 
-function getISSAnimSnapshot(): ISSAnimationState {
-  return issAnimState;
+export function subscribeISSAnim(callback: () => void): () => void {
+  issAnimListeners.add(callback);
+  return () => issAnimListeners.delete(callback);
 }
-
-function getISSAnimServerSnapshot(): ISSAnimationState {
-  return null;
-}
-
-function subscribeISSAnim(callback: () => void): () => void {
-  issListeners.add(callback);
-  return () => issListeners.delete(callback);
-}
+export function getISSAnimSnapshot(): ISSAnimationState        { return issAnimState; }
+export function getISSAnimServerSnapshot(): ISSAnimationState  { return null; }
 
 function emitISSAnim(state: ISSAnimationState): void {
   issAnimState = state;
-  for (const listener of issListeners) {
-    listener();
-  }
+  issAnimListeners.forEach((cb) => cb());
+}
+
+// ─── External store: next pass (5-minute cadence) ────────────────────────────
+//
+// Separating nextPass into its own store means the ~60fps animation store
+// updates do NOT cause ISSNextPass to re-render. It only re-renders when
+// the 5-minute pass prediction recalculates.
+
+let issNextPassState: SatellitePass | null = null;
+const issNextPassListeners = new Set<() => void>();
+
+export function subscribeISSNextPass(callback: () => void): () => void {
+  issNextPassListeners.add(callback);
+  return () => issNextPassListeners.delete(callback);
+}
+export function getISSNextPassSnapshot(): SatellitePass | null        { return issNextPassState; }
+export function getISSNextPassServerSnapshot(): SatellitePass | null  { return null; }
+
+function emitISSNextPass(state: SatellitePass | null): void {
+  // Only notify when the value actually changes (reference or nullability)
+  if (state === issNextPassState) return;
+  issNextPassState = state;
+  issNextPassListeners.forEach((cb) => cb());
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
+//
+// useISSTracker() is still used by OrbitalEngineLayer (for orbitPath/trail)
+// and by any caller that needs the full ISSData bundle. Components that only
+// need live telemetry should call useSyncExternalStore(subscribeISSAnim, ...)
+// directly instead of calling this hook.
 
 export function useISSTracker() {
   const selectedLocation = useLocationStore((s) => s.selectedLocation);
-  const simulatedTime = useSimulationClock((s) => s.simulatedTime);
+  const simulatedTime    = useSimulationClock((s) => s.simulatedTime);
 
-  // Fetch ISS TLE
+  // ── TLE data (5-min refresh) ────────────────────────────────────────────
   const { data: issTle } = useQuery<TLEData | null>({
-    queryKey: ["iss-tle"],
-    queryFn: fetchISSTLE,
-    staleTime: ISS_TLE_REFRESH_INTERVAL,
+    queryKey:        ["iss-tle"],
+    queryFn:         fetchISSTLE,
+    staleTime:       ISS_TLE_REFRESH_INTERVAL,
     refetchInterval: ISS_TLE_REFRESH_INTERVAL,
-    retry: 3,
+    retry:           3,
   });
 
-  // Round simulation time to nearest minute for orbit recalculation
-  // (avoids blinking from recreating polylines every second)
-  const orbitTimeKey = Math.floor(simulatedTime.getTime() / 60000);
+  // ── Orbit path + trail (1-minute cadence) ──────────────────────────────
+  const orbitTimeKey = Math.floor(simulatedTime.getTime() / 60_000);
 
-  // Compute orbit path (recomputes only once per minute)
   const orbitPath = useMemo<OrbitPoint[]>(() => {
     if (!issTle) return [];
-    const time = new Date(orbitTimeKey * 60000);
-    return computeFullOrbit(issTle, time);
+    return computeFullOrbit(issTle, new Date(orbitTimeKey * 60_000));
   }, [issTle, orbitTimeKey]);
 
-  // Compute trail (recomputes only once per minute)
   const trail = useMemo<OrbitPoint[]>(() => {
     if (!issTle) return [];
-    const time = new Date(orbitTimeKey * 60000);
-    return computeOrbitTrail(issTle, time, 45);
+    return computeOrbitTrail(issTle, new Date(orbitTimeKey * 60_000), 45);
   }, [issTle, orbitTimeKey]);
 
-  // Compute next pass
+  // ── Next pass (5-minute cadence) — emitted to external store ───────────
+  // Throttled key: only recalculates when location changes OR every 5 min.
+  // We also emit into the nextPass external store so ISSNextPass component
+  // can subscribe without calling this hook.
+  const passTimeKey = Math.floor(simulatedTime.getTime() / 300_000);
+
   const nextPass = useMemo<SatellitePass | null>(() => {
-    if (!issTle || !selectedLocation) return null;
-    return predictNextPass(
+    if (!issTle || !selectedLocation) {
+      return null;
+    }
+    const pass = predictNextPass(
       issTle,
       selectedLocation.latitude,
       selectedLocation.longitude,
       0,
       5
     );
-  }, [issTle, selectedLocation]);
+    return pass;
+    // passTimeKey intentionally included — lint suppressed because we want
+    // the 5-min bucket throttle, not React's exhaustive-deps rule.
+  }, [issTle, selectedLocation, passTimeKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Animation loop using external store (avoids re-render on every frame)
-  const tleRef = useRef<TLEData | null>(null);
-  const lastPosRef = useRef<PropagatedPosition | null>(null);
-  const nextPosRef = useRef<PropagatedPosition | null>(null);
-  const interpStartRef = useRef<number>(0);
-  // Use separate refs for RAF handle and throttle-timeout handle so cleanup
-  // is always correct — previously both were stored in the same ref, meaning
-  // whichever was stored last would cancel the wrong resource type.
-  const animFrameRef = useRef<number>(0);
+  // Emit nextPass to the external store in an effect so it never fires
+  // during render (which would cause "setState during render" warnings).
+  useEffect(() => {
+    emitISSNextPass(nextPass ?? null);
+  }, [nextPass]);
+
+  // ── Animation loop ──────────────────────────────────────────────────────
+  const tleRef           = useRef<TLEData | null>(null);
+  const lastPosRef       = useRef<PropagatedPosition | null>(null);
+  const nextPosRef       = useRef<PropagatedPosition | null>(null);
+  const interpStartRef   = useRef<number>(0);
+  const animFrameRef     = useRef<number>(0);
   const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    tleRef.current = issTle ?? null;
-  }, [issTle]);
+  useEffect(() => { tleRef.current = issTle ?? null; }, [issTle]);
 
   useEffect(() => {
     if (!issTle) return;
 
-    // Set up propagation targets every 5 seconds
     const propagateNext = () => {
       const tle = tleRef.current;
       if (!tle) return;
-      const now = new Date();
+      const now    = new Date();
       const current = propagateToTime(tle, now);
-      const future = propagateToTime(tle, new Date(now.getTime() + 5000));
+      const future  = propagateToTime(tle, new Date(now.getTime() + 5_000));
       if (current && future) {
-        lastPosRef.current = current;
-        nextPosRef.current = future;
+        lastPosRef.current    = current;
+        nextPosRef.current    = future;
         interpStartRef.current = Date.now();
       }
     };
@@ -136,40 +171,32 @@ export function useISSTracker() {
     propagateNext();
     const propagateInterval = setInterval(propagateNext, ISS_ANIM_PROPAGATE_INTERVAL);
 
-    // 60fps animation loop — only runs while there are active UI subscribers.
-    // When no component is subscribed (e.g. on the landing page), the loop
-    // reschedules itself at ~4fps to keep positions fresh on resubscription.
     const animate = () => {
       const last = lastPosRef.current;
       const next = nextPosRef.current;
 
       if (last && next) {
-        const elapsed = Date.now() - interpStartRef.current;
-        const t = Math.min(elapsed / 5000, 1);
-        const pos = interpolatePosition(last, next, t);
-
+        const elapsed  = Date.now() - interpStartRef.current;
+        const t        = Math.min(elapsed / 5_000, 1);
+        const pos      = interpolatePosition(last, next, t);
         const speedKmS = pos.velocity;
         const speedKmH = speedKmS * 3600;
         const speedMph = speedKmH * 0.621371;
 
-        // Only emit (and wake subscribers) when there are active listeners
-        if (issListeners.size > 0) {
+        if (issAnimListeners.size > 0) {
           emitISSAnim({
-            latitude: pos.latitude,
+            latitude:  pos.latitude,
             longitude: pos.longitude,
-            altitude: pos.altitude,
-            velocity: speedKmH,
+            altitude:  pos.altitude,
+            velocity:  speedKmH,
             speedKmS,
             speedKmH,
             speedMph,
             timestamp: Date.now(),
           });
-          // Full 60fps when UI is mounted
           animFrameRef.current = requestAnimationFrame(animate);
         } else {
-          // No subscribers — throttle to ~4fps to avoid burning CPU.
-          // Store timeout handle in its own ref so cleanup can cancel it
-          // independently of the RAF handle.
+          // No active subscribers — throttle to ~4 fps to avoid burning CPU
           throttleTimerRef.current = setTimeout(() => {
             throttleTimerRef.current = null;
             animFrameRef.current = requestAnimationFrame(animate);
@@ -192,28 +219,30 @@ export function useISSTracker() {
     };
   }, [issTle]);
 
-  // Subscribe to animation state without setState
+  // ── Subscribe to animation state (no setState → no parent re-render) ───
   const animState = useSyncExternalStore(
     subscribeISSAnim,
     getISSAnimSnapshot,
     getISSAnimServerSnapshot
   );
 
-  // Build full ISSData
+  // Build ISSData. orbitPath/trail/nextPass are stable memoized references —
+  // they don't create a new ISSData object on every 60fps animation tick.
   const issData: ISSData | null = animState
     ? {
-        ...animState,
+        latitude:  animState.latitude,
+        longitude: animState.longitude,
+        altitude:  animState.altitude,
+        velocity:  animState.velocity,
+        speedKmS:  animState.speedKmS,
+        speedKmH:  animState.speedKmH,
+        speedMph:  animState.speedMph,
+        timestamp: animState.timestamp,
         orbitPath,
         trail,
         nextPass,
       }
     : null;
 
-  return {
-    issData,
-    orbitPath,
-    trail,
-    nextPass,
-    isLoading: !issTle,
-  };
+  return { issData, orbitPath, trail, nextPass, isLoading: !issTle };
 }
