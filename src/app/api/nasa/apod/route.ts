@@ -8,8 +8,7 @@ import { getServerEnv } from "@/lib/env";
 
 export async function GET() {
   const { NASA_API_KEY } = getServerEnv();
-  const now       = new Date();
-  const todayUTC  = now.toISOString().split("T")[0]!;
+  const now = new Date();
 
   // ── Seconds until next UTC midnight ─────────────────────────────────────
   const midnight = new Date(Date.UTC(
@@ -27,18 +26,34 @@ export async function GET() {
     "Cache-Control": `public, s-maxage=${secondsUntilMidnight}, stale-while-revalidate=300`,
   };
 
+  // Helper: try fetching APOD for a specific date (or no date = NASA's default today)
+  async function fetchApodForDate(date?: string): Promise<Response> {
+    const url = date
+      ? `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY}&date=${date}`
+      : `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY}`;
+    return fetch(url, {
+      signal: AbortSignal.timeout(15_000),
+      next:   { revalidate: secondsUntilMidnight },
+    } as RequestInit);
+  }
+
   try {
-    // Pass `next: { revalidate }` so Next.js's built-in fetch data cache also
-    // stores the upstream NASA response for the same period. This means repeated
-    // serverless invocations on the same instance (or via the edge cache) will
-    // NOT hit NASA's API again — they get the cached response immediately.
-    const response = await fetch(
-      `https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY}&date=${todayUTC}`,
-      {
-        signal: AbortSignal.timeout(15_000),
-        next:   { revalidate: secondsUntilMidnight },
-      } as RequestInit,
-    );
+    // ── First attempt: no date param — let NASA decide "today" ─────────────
+    // Avoids 404s caused by timezone skew between our server and NASA's
+    // publish schedule (NASA publishes around midnight US Eastern time).
+    let response = await fetchApodForDate();
+
+    // ── If NASA returned 404, try yesterday as a safe fallback ─────────────
+    // This handles the brief window after UTC midnight but before NASA
+    // publishes the next image (~05:00–06:00 UTC / midnight US Eastern).
+    if (response.status === 404) {
+      const yesterday = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() - 1,
+      )).toISOString().split("T")[0]!;
+      response = await fetchApodForDate(yesterday);
+    }
 
     if (response.status === 429) {
       return NextResponse.json(
@@ -51,39 +66,32 @@ export async function GET() {
       throw new Error(`NASA APOD returned ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as Record<string, unknown>;
+
+    // Ensure url is never empty — if NASA somehow returns no url, treat as error
+    if (!data.url || data.url === "") {
+      throw new Error("NASA APOD returned empty url");
+    }
 
     return NextResponse.json(
-      { ...data, _source: "live", _date: todayUTC },
+      { ...data, _source: "live" },
       { headers: cacheHeaders },
     );
 
   } catch (error) {
     const isTimeout = error instanceof Error && error.name === "TimeoutError";
 
-    // On timeout, return a 503 so the client knows to retry rather than
-    // caching a fallback as if it were real data.
-    if (isTimeout) {
-      return NextResponse.json(
-        { error: "NASA API timed out — please try again", _source: "timeout" },
-        { status: 503, headers: { "Cache-Control": "no-store" } },
-      );
-    }
-
-    // Generic fallback — only reached on non-timeout errors (DNS, network down, etc.)
+    // On timeout or any error, return 503 so the client shows the retry UI
+    // rather than silently displaying a broken fallback with no image.
     return NextResponse.json(
       {
-        title: "Coronal Mass Ejection from the Sun",
-        explanation:
-          "The Sun's surface is a churning soup of energetic plasma. Magnetic field loops twist and snap, expelling billions of tons of plasma into space — a coronal mass ejection. NASA monitors these events because they can disrupt power grids and satellites on Earth.",
-        url: "",
-        media_type: "image",
-        date: todayUTC,
-        copyright: "NASA/SDO",
-        _source: "fallback",
+        error: isTimeout
+          ? "NASA API timed out — please try again"
+          : "Could not load APOD — please try again",
+        _source: isTimeout ? "timeout" : "error",
         _error: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 200, headers: cacheHeaders },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
 }
